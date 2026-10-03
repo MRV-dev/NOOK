@@ -75,6 +75,19 @@
           <div class="brand">
             <span class="brand-mark">C</span><span>TELEGRAM 2.0</span>
           </div>
+          <button
+            class="icon-button"
+            id="create-group-button"
+            type="button"
+            aria-label="Create group chat"
+            title="Create group chat"
+          >
+            <svg viewBox="0 0 24 24">
+              <path d="M16 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+              <circle cx="10" cy="7" r="4"></circle>
+              <path d="M20 8v6m3-3h-6"></path>
+            </svg>
+          </button>
         </div>
         <div class="identity">
           <div class="avatar" id="my-avatar"></div>
@@ -156,6 +169,67 @@
         </div>
       </section>
     </main>
+    <dialog class="group-dialog" id="group-dialog" aria-labelledby="group-dialog-title">
+      <form class="group-form" id="group-form">
+        <div class="group-dialog-header">
+          <div>
+            <span class="eyebrow">Messages</span>
+            <h2 id="group-dialog-title">New group chat</h2>
+          </div>
+          <button
+            class="icon-button"
+            id="group-close-button"
+            type="button"
+            aria-label="Close"
+          >
+            <svg viewBox="0 0 24 24">
+              <path d="m18 6-12 12M6 6l12 12"></path>
+            </svg>
+          </button>
+        </div>
+        <label class="field" for="group-name">
+          Group name
+          <input id="group-name" maxlength="60" required placeholder="Name this group" />
+        </label>
+        <label class="field" for="group-search">
+          Add people
+          <input
+            id="group-search"
+            type="search"
+            placeholder="Search by name or email"
+            autocomplete="off"
+          />
+        </label>
+        <div class="group-selected" id="group-selected" aria-live="polite"></div>
+        <div class="group-results" id="group-results" aria-label="People search results"></div>
+        <p class="group-hint" id="group-hint" aria-live="polite">
+          Choose at least two people to start a group.
+        </p>
+        <div class="group-dialog-actions">
+          <button class="text-button" id="group-cancel-button" type="button">
+            Cancel
+          </button>
+          <button class="primary" id="group-submit-button" type="submit" disabled>
+            Create group
+          </button>
+        </div>
+        <p class="notice" id="group-notice" role="status"></p>
+      </form>
+    </dialog>
+    <div class="message-toast-region" aria-live="polite" aria-atomic="true">
+      <button class="message-toast hidden" id="message-toast" type="button">
+        <span class="message-toast-mark" aria-hidden="true">
+          <svg viewBox="0 0 24 24">
+            <path d="M21 11.5a8.4 8.4 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.4 8.4 0 0 1-3.8-.9L3 21l1.9-5.7a8.4 8.4 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.4 8.4 0 0 1 3.8-.9h.5a8.5 8.5 0 0 1 8 8v.5z"></path>
+          </svg>
+        </span>
+        <span class="message-toast-copy">
+          <strong id="message-toast-sender"></strong>
+          <span id="message-toast-content"></span>
+        </span>
+        <span class="message-toast-action">Open</span>
+      </button>
+    </div>
     <div id="error-toast" class="error-toast hidden" role="alert"></div>
 
     <script src="/socket.io/socket.io.js"></script>

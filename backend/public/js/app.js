@@ -11,7 +11,19 @@ const authSwitch = document.getElementById("auth-switch");
 const conversationList = document.getElementById("conversation-list");
 const searchInput = document.getElementById("user-search");
 const searchResults = document.getElementById("search-results");
+const groupDialog = document.getElementById("group-dialog");
+const groupForm = document.getElementById("group-form");
+const groupNameInput = document.getElementById("group-name");
+const groupSearchInput = document.getElementById("group-search");
+const groupSelected = document.getElementById("group-selected");
+const groupResults = document.getElementById("group-results");
+const groupHint = document.getElementById("group-hint");
+const groupNotice = document.getElementById("group-notice");
+const groupSubmitButton = document.getElementById("group-submit-button");
 const messages = document.getElementById("messages");
+const messageToast = document.getElementById("message-toast");
+const messageToastSender = document.getElementById("message-toast-sender");
+const messageToastContent = document.getElementById("message-toast-content");
 const errorToast = document.getElementById("error-toast");
 let isRegistering = false;
 let token = sessionStorage.getItem("chat-token");
@@ -20,6 +32,11 @@ let currentConversation = null;
 let socket = null;
 let onlineUsers = new Set();
 let searchTimeout = null;
+let groupSearchTimeout = null;
+let groupSearchMatches = [];
+const selectedGroupMembers = new Map();
+let messageToastTimeout = null;
+let notificationConversationId = null;
 let typingTimeout = null;
 let isTyping = false;
 
@@ -119,12 +136,16 @@ const setConversationHeader = (conversation) => {
   document.getElementById("chat-avatar").textContent = initials(displayName);
   document
     .getElementById("chat-avatar")
-    .classList.toggle("online", Boolean(otherId && onlineUsers.has(otherId)));
-  document.getElementById("chat-status").textContent = otherId
-    ? onlineUsers.has(otherId)
-      ? "Online"
-      : "Direct conversation"
-    : `${conversation.participants.length} participants`;
+    .classList.toggle(
+      "online",
+      conversation.type === "direct" && Boolean(otherId && onlineUsers.has(otherId)),
+    );
+  document.getElementById("chat-status").textContent =
+    conversation.type === "group"
+      ? `${conversation.participants.length} participants`
+      : otherId && onlineUsers.has(otherId)
+        ? "Online"
+        : "Direct conversation";
 };
 const renderConversation = (conversation) => {
   const other = conversation.participants.find(
@@ -138,7 +159,7 @@ const renderConversation = (conversation) => {
   item.type = "button";
   item.className = `conversation-item${currentConversation?._id === conversation._id ? " active" : ""}`;
   const avatar = document.createElement("span");
-  avatar.className = `avatar small${other && onlineUsers.has(other._id) ? " online" : ""}`;
+  avatar.className = `avatar small${conversation.type === "direct" && other && onlineUsers.has(other._id) ? " online" : ""}`;
   avatar.textContent = initials(name);
   const copy = document.createElement("span");
   copy.className = "conversation-copy";
@@ -171,6 +192,20 @@ const loadConversations = async () => {
   } catch (error) {
     showError(error.message);
   }
+};
+const showMessageNotification = ({ conversationId, sender, content }) => {
+  if (currentConversation?._id === conversationId) return;
+
+  notificationConversationId = conversationId;
+  messageToastSender.textContent = sender?.username || "New message";
+  messageToastContent.textContent = content;
+  messageToast.classList.remove("hidden");
+  clearTimeout(messageToastTimeout);
+  messageToastTimeout = setTimeout(
+    () => messageToast.classList.add("hidden"),
+    5500,
+  );
+  loadConversations();
 };
 const appendMessage = (message) => {
   const sender = message.sender;
@@ -295,6 +330,132 @@ document.addEventListener("click", (event) => {
     searchResults.classList.add("hidden");
 });
 
+const updateGroupSelection = () => {
+  groupSelected.replaceChildren();
+  selectedGroupMembers.forEach((person) => {
+    const member = document.createElement("span");
+    member.className = "group-selected-person";
+    const name = document.createElement("span");
+    name.textContent = person.username;
+    const remove = document.createElement("button");
+    remove.type = "button";
+    remove.setAttribute("aria-label", `Remove ${person.username}`);
+    remove.innerHTML = '<svg viewBox="0 0 24 24"><path d="m18 6-12 12M6 6l12 12"></path></svg>';
+    remove.addEventListener("click", () => {
+      selectedGroupMembers.delete(person._id);
+      updateGroupSelection();
+      renderGroupSearchResults();
+    });
+    member.append(name, remove);
+    groupSelected.append(member);
+  });
+
+  groupHint.textContent = `${selectedGroupMembers.size} selected. Choose at least two people to start a group.`;
+  groupSubmitButton.disabled = selectedGroupMembers.size < 2;
+};
+
+const renderGroupSearchResults = () => {
+  groupResults.replaceChildren();
+  if (!groupSearchMatches.length) {
+    const empty = document.createElement("p");
+    empty.className = "group-empty";
+    empty.textContent = groupSearchInput.value.trim().length >= 2
+      ? "No people found"
+      : "Search by name or email to add people";
+    groupResults.append(empty);
+    return;
+  }
+
+  groupSearchMatches.forEach((person) => {
+    const selected = selectedGroupMembers.has(person._id);
+    const result = document.createElement("button");
+    result.type = "button";
+    result.className = `search-result group-member${selected ? " selected" : ""}`;
+    result.setAttribute("aria-pressed", String(selected));
+    const avatar = document.createElement("span");
+    avatar.className = `avatar small${onlineUsers.has(person._id) ? " online" : ""}`;
+    avatar.textContent = initials(person.username);
+    const name = document.createElement("strong");
+    name.textContent = person.username;
+    const state = document.createElement("span");
+    state.className = "group-member-state";
+    state.textContent = selected ? "Added" : "Add";
+    result.append(avatar, name, state);
+    result.addEventListener("click", () => {
+      if (selectedGroupMembers.has(person._id))
+        selectedGroupMembers.delete(person._id);
+      else selectedGroupMembers.set(person._id, person);
+      updateGroupSelection();
+      renderGroupSearchResults();
+    });
+    groupResults.append(result);
+  });
+};
+
+const resetGroupDialog = () => {
+  clearTimeout(groupSearchTimeout);
+  groupForm.reset();
+  selectedGroupMembers.clear();
+  groupSearchMatches = [];
+  groupResults.replaceChildren();
+  groupNotice.textContent = "";
+  updateGroupSelection();
+};
+
+document.getElementById("create-group-button").addEventListener("click", () => {
+  resetGroupDialog();
+  groupDialog.showModal();
+  groupNameInput.focus();
+});
+document.getElementById("group-close-button").addEventListener("click", () => groupDialog.close());
+document.getElementById("group-cancel-button").addEventListener("click", () => groupDialog.close());
+groupDialog.addEventListener("click", (event) => {
+  if (event.target === groupDialog) groupDialog.close();
+});
+groupSearchInput.addEventListener("input", () => {
+  clearTimeout(groupSearchTimeout);
+  const query = groupSearchInput.value.trim();
+  if (query.length < 2) {
+    groupSearchMatches = [];
+    renderGroupSearchResults();
+    return;
+  }
+
+  groupSearchTimeout = setTimeout(async () => {
+    try {
+      groupSearchMatches = await api(`/api/users/search?q=${encodeURIComponent(query)}`);
+      renderGroupSearchResults();
+    } catch (error) {
+      groupNotice.textContent = error.message;
+    }
+  }, 220);
+});
+groupForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  groupNotice.textContent = "";
+  groupSubmitButton.disabled = true;
+  groupSubmitButton.textContent = "Creating...";
+  try {
+    const conversation = await api("/api/conversations", {
+      method: "POST",
+      body: JSON.stringify({
+        type: "group",
+        name: groupNameInput.value.trim(),
+        participants: [...selectedGroupMembers.keys()],
+      }),
+    });
+    groupDialog.close();
+    resetGroupDialog();
+    await loadConversations();
+    openConversation(conversation);
+  } catch (error) {
+    groupNotice.textContent = error.message;
+  } finally {
+    groupSubmitButton.textContent = "Create group";
+    groupSubmitButton.disabled = selectedGroupMembers.size < 2;
+  }
+});
+
 document.getElementById("message-form").addEventListener("submit", (event) => {
   event.preventDefault();
   const input = document.getElementById("message-input");
@@ -362,6 +523,7 @@ const connectSocket = () => {
       appendMessage(message);
     loadConversations();
   });
+  socket.on("message:notification", showMessageNotification);
   socket.on("typing:update", ({ conversationId, user, isTyping: typing }) => {
     if (currentConversation?._id === conversationId)
       document.getElementById("typing-indicator").textContent = typing
@@ -373,8 +535,23 @@ const connectSocket = () => {
 document
   .getElementById("back-button")
   .addEventListener("click", () => chatApp.classList.remove("chat-open"));
+messageToast.addEventListener("click", async () => {
+  clearTimeout(messageToastTimeout);
+  messageToast.classList.add("hidden");
+  try {
+    const conversations = await api("/api/conversations");
+    const conversation = conversations.find(
+      (item) => item._id === notificationConversationId,
+    );
+    if (conversation) openConversation(conversation);
+  } catch (error) {
+    showError(error.message);
+  }
+});
 document.getElementById("logout").addEventListener("click", () => {
   socket?.disconnect();
+  clearTimeout(messageToastTimeout);
+  messageToast.classList.add("hidden");
   sessionStorage.removeItem("chat-token");
   token = null;
   currentUser = null;

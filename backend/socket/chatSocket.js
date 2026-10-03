@@ -85,6 +85,14 @@ const attachChatSockets = (io) => {
       }
 
       try {
+        const conversation = await Conversation.findOne({
+          _id: conversationId,
+          participants: user.id,
+        }).select("participants");
+        if (!conversation) {
+          return acknowledge?.({ ok: false, message: "Conversation not found" });
+        }
+
         const message = await createMessageForUser({
           conversationId,
           senderId: user.id,
@@ -96,6 +104,16 @@ const attachChatSockets = (io) => {
         }
 
         socket.to(room).emit("message:new", message);
+          conversation.participants.forEach((participantId) => {
+          const participantUserId = participantId.toString();
+          if (participantUserId !== user.id) {
+            io.to(`user:${participantUserId}`).emit("message:notification", {
+              conversationId,
+              sender: message.sender,
+              content: message.content,
+            });
+          }
+        });
         return acknowledge?.({ ok: true, message });
       } catch {
         return acknowledge?.({ ok: false, message: "Could not send message" });
