@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#f1f5f1" />
+    <title>Commonroom - Real-time chat</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/css/styles.css" />
+  </head>
+  <body>
+    <main id="auth-screen" class="auth-screen">
+      <section class="auth-panel">
+        <div class="auth-aside">
+          <div class="brand">
+            <span class="brand-mark">C</span><span>Commonroom</span>
+          </div>
+          <div>
+            <h1>Good conversations start here.</h1>
+            <p>A quieter place to catch up, share a thought, and stay close.</p>
+          </div>
+        </div>
+        <div class="auth-form-wrap">
+          <span class="eyebrow">Your messages, together</span>
+          <h2 id="auth-title">Welcome back</h2>
+          <p class="subtle" id="auth-subtitle">
+            Sign in to pick up where you left off.
+          </p>
+          <form id="auth-form">
+            <label class="field hidden" id="username-field"
+              >Username<input
+                name="username"
+                minlength="3"
+                maxlength="30"
+                autocomplete="username"
+            /></label>
+            <label class="field"
+              >Email<input
+                name="email"
+                type="email"
+                required
+                autocomplete="email"
+            /></label>
+            <label class="field"
+              >Password<input
+                name="password"
+                type="password"
+                required
+                minlength="8"
+                autocomplete="current-password"
+            /></label>
+            <button class="primary" id="auth-submit" type="submit">
+              Sign in
+            </button>
+            <p class="notice" id="auth-notice" role="status"></p>
+          </form>
+          <p class="auth-switch">
+            <span id="auth-switch-copy">New here?</span>
+            <button class="text-button" id="auth-switch" type="button">
+              Create an account
+            </button>
+          </p>
+        </div>
+      </section>
+    </main>
+
+    <main id="chat-app" class="app-shell hidden">
+      <aside class="sidebar">
+        <div class="sidebar-head">
+          <div class="brand">
+            <span class="brand-mark">C</span><span>Commonroom</span>
+          </div>
+        </div>
+        <div class="identity">
+          <div class="avatar" id="my-avatar"></div>
+          <div class="identity-copy">
+            <strong id="my-name"></strong><span>Available to chat</span>
+          </div>
+        </div>
+        <div class="search-wrap">
+          <svg
+            class="search-icon"
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+          >
+            <circle cx="11" cy="11" r="7"></circle>
+            <path d="m20 20-4-4"></path>
+          </svg>
+          <input
+            class="search-input"
+            id="user-search"
+            type="search"
+            placeholder="Find people"
+            autocomplete="off"
+            aria-label="Find people"
+          />
+          <div class="search-results hidden" id="search-results"></div>
+        </div>
+        <div class="section-label">
+          <span>Messages</span><span id="conversation-count"></span>
+        </div>
+        <div class="conversation-list" id="conversation-list"></div>
+        <footer class="sidebar-foot">
+          <span style="color: var(--muted); font-size: 12px"
+            >Signed in as <strong id="footer-name"></strong></span
+          ><button class="text-button" id="logout" type="button">
+            Sign out
+          </button>
+        </footer>
+      </aside>
+      <section class="chat-pane">
+        <header class="chat-header hidden" id="chat-header">
+          <button
+            class="icon-button back-button"
+            id="back-button"
+            type="button"
+            aria-label="Back to conversations"
+          >
+            <svg viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"></path></svg>
+          </button>
+          <div class="avatar small" id="chat-avatar"></div>
+          <div class="chat-header-copy">
+            <h2 id="chat-title"></h2>
+            <p id="chat-status"></p>
+          </div>
+        </header>
+        <div class="empty-state" id="welcome-state">
+          <div class="empty-symbol">C</div>
+          <h2>Your conversations live here</h2>
+          <p>
+            Find someone by name to start a conversation. Messages arrive
+            instantly while you’re here.
+          </p>
+        </div>
+        <div class="messages hidden" id="messages" aria-live="polite"></div>
+        <div class="typing" id="typing-indicator"></div>
+        <div class="composer-wrap hidden" id="composer-wrap">
+          <form class="composer" id="message-form">
+            <input
+              id="message-input"
+              maxlength="10000"
+              placeholder="Write a message..."
+              autocomplete="off"
+              aria-label="Message"
+            /><button class="primary" type="submit">Send</button>
+          </form>
+        </div>
+      </section>
+    </main>
+    <div id="error-toast" class="error-toast hidden" role="alert"></div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="/js/app.js" defer></script>
+  </body>
+</html>
