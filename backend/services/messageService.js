@@ -1,7 +1,15 @@
 const Conversation = require("../models/conversation.model");
 const Message = require("../models/message.model");
 
-const createMessageForUser = async ({ conversationId, senderId, content }) => {
+const createMessageForUser = async ({
+  conversationId,
+  senderId,
+  content = "",
+  mediaUrl = "",
+  mediaPublicId = "",
+  mediaType = "",
+  media = [],
+}) => {
   const conversation = await Conversation.findOne({
     _id: conversationId,
     participants: senderId,
@@ -15,6 +23,10 @@ const createMessageForUser = async ({ conversationId, senderId, content }) => {
     conversation: conversation._id,
     sender: senderId,
     content,
+    mediaUrl,
+    mediaPublicId,
+    ...(mediaType ? { mediaType } : {}),
+    media,
     readBy: [senderId],
   });
 

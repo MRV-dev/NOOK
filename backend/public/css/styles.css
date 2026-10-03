@@ -863,6 +863,10 @@ textarea:focus {
   color: var(--muted);
   font-size: 11px;
 }
+.media-stack-label {
+  padding-left: 7px;
+  font-size: 13px;
+}
 .bubble {
   overflow-wrap: anywhere;
   border: 1px solid var(--bubble-border);
@@ -880,6 +884,346 @@ textarea:focus {
 .bubble.deleted {
   color: var(--muted);
   font-style: italic;
+}
+.bubble.media-bubble {
+  max-width: 100%;
+}
+.message-media-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+  width: min(100%, 400px);
+}
+.message-media-grid.single {
+  display: block;
+}
+.message-media-stack {
+  position: relative;
+  width: min(270px, 68vw);
+  aspect-ratio: 1;
+  margin: 3px 10px 9px 4px;
+}
+.message-media-stack-item {
+  position: absolute;
+  inset: 0;
+  overflow: visible;
+}
+.message-media-stack-item:nth-child(1) {
+  z-index: 1;
+  transform: translate(-11px, 7px) rotate(-7deg);
+}
+.message-media-stack-item:nth-child(2) {
+  z-index: 2;
+  transform: translate(-5px, 3px) rotate(-3deg);
+}
+.message-media-stack-item:nth-child(3) {
+  z-index: 3;
+}
+.message-media-stack-item .message-media {
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  max-height: none;
+  border: 4px solid var(--paper);
+  border-radius: 18px;
+  background: var(--bubble-bg);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.28);
+  object-fit: cover;
+}
+.message-media-item {
+  position: relative;
+  min-width: 0;
+}
+.message-media-item img.message-media {
+  cursor: zoom-in;
+}
+.message-media {
+  display: block;
+  width: 100%;
+  max-width: 400px;
+  max-height: 420px;
+  border-radius: 6px;
+  object-fit: contain;
+}
+.media-open {
+  position: absolute;
+  right: 7px;
+  bottom: 7px;
+  display: grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  border: 1px solid rgba(255, 255, 255, 0.45);
+  border-radius: 6px;
+  color: white;
+  background: rgba(20, 28, 24, 0.76);
+  cursor: pointer;
+}
+.media-open svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 2;
+}
+.media-open:hover,
+.media-open:focus-visible {
+  background: var(--action);
+  outline: 2px solid var(--paper);
+  outline-offset: 1px;
+}
+.media-download {
+  position: absolute;
+  top: 7px;
+  right: 7px;
+  display: grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  border: 1px solid rgba(255, 255, 255, 0.45);
+  border-radius: 6px;
+  color: white;
+  background: rgba(20, 28, 24, 0.76);
+  cursor: pointer;
+}
+.media-download svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 2;
+}
+.media-download:hover,
+.media-download:focus-visible {
+  background: var(--action);
+  outline: 2px solid var(--paper);
+  outline-offset: 1px;
+}
+.media-caption {
+  display: block;
+  margin-top: 8px;
+}
+.media-viewer {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100dvh;
+  max-width: none;
+  max-height: none;
+  overflow: hidden;
+  border: 0;
+  border-radius: 0;
+  padding: 0;
+  color: white;
+  background: #101311;
+}
+.media-viewer[open] {
+  display: block;
+}
+.media-viewer::backdrop {
+  background: #080a09;
+}
+.media-viewer-background {
+  position: absolute;
+  z-index: 0;
+  inset: -24px;
+  overflow: hidden;
+  background: #101311;
+  pointer-events: auto;
+}
+.media-viewer-background-asset {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0.62;
+  filter: blur(28px) brightness(0.34);
+  transform: scale(1.08);
+}
+.media-viewer-toolbar {
+  position: absolute;
+  z-index: 4;
+  top: 0;
+  right: 0;
+  left: 0;
+  display: flex;
+  min-height: 64px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 22px;
+  background: linear-gradient(rgba(0, 0, 0, 0.36), transparent);
+}
+.media-viewer-counter {
+  color: rgba(255, 255, 255, 0.82);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+.media-viewer-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.media-viewer-action {
+  display: grid;
+  width: 40px;
+  height: 40px;
+  place-items: center;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 50%;
+  color: white;
+  background: rgba(0, 0, 0, 0.56);
+  cursor: pointer;
+}
+.media-viewer-action svg {
+  width: 19px;
+  height: 19px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 2;
+}
+.media-viewer-action:hover,
+.media-viewer-action:focus-visible {
+  background: rgba(255, 255, 255, 0.2);
+  outline: 2px solid rgba(255, 255, 255, 0.78);
+  outline-offset: 2px;
+}
+.media-viewer-content {
+  position: absolute;
+  z-index: 2;
+  inset: 64px 78px 94px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  min-height: 0;
+}
+.media-viewer-asset {
+  display: block;
+  width: auto;
+  height: auto;
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+.media-viewer-nav {
+  position: absolute;
+  z-index: 3;
+  top: 50%;
+  display: grid;
+  width: 44px;
+  height: 44px;
+  place-items: center;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 50%;
+  color: white;
+  background: rgba(0, 0, 0, 0.42);
+  cursor: pointer;
+  transform: translateY(-50%);
+}
+.media-viewer-previous {
+  left: 18px;
+}
+.media-viewer-next {
+  right: 18px;
+}
+.media-viewer-nav svg {
+  width: 22px;
+  height: 22px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 2;
+}
+.media-viewer-nav:hover:not(:disabled),
+.media-viewer-nav:focus-visible {
+  background: rgba(255, 255, 255, 0.2);
+  outline: 2px solid rgba(255, 255, 255, 0.78);
+  outline-offset: 2px;
+}
+.media-viewer-nav:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+.media-viewer-thumbnails {
+  position: absolute;
+  z-index: 4;
+  right: 96px;
+  bottom: 12px;
+  left: 96px;
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 5px 2px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.42) transparent;
+}
+.media-viewer-thumbnail {
+  position: relative;
+  flex: 0 0 58px;
+  width: 58px;
+  height: 48px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 5px;
+  padding: 0;
+  background: rgba(0, 0, 0, 0.44);
+  cursor: pointer;
+}
+.media-viewer-thumbnail.active {
+  border: 2px solid white;
+}
+.media-viewer-thumbnail-asset {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.media-viewer-video-mark {
+  position: absolute;
+  right: 3px;
+  bottom: 2px;
+  color: white;
+  font-size: 9px;
+  text-shadow: 0 1px 4px black;
+}
+@media (max-width: 600px) {
+  .media-viewer-toolbar {
+    min-height: 56px;
+    padding: 8px 12px;
+  }
+  .media-viewer-actions {
+    gap: 6px;
+  }
+  .media-viewer-action {
+    width: 36px;
+    height: 36px;
+  }
+  .media-viewer-content {
+    inset: 58px 48px 84px;
+  }
+  .media-viewer-previous {
+    left: 5px;
+  }
+  .media-viewer-next {
+    right: 5px;
+  }
+  .media-viewer-nav {
+    width: 36px;
+    height: 36px;
+  }
+  .media-viewer-thumbnails {
+    right: 8px;
+    bottom: 8px;
+    left: 8px;
+    justify-content: flex-start;
+  }
 }
 .message-actions {
   position: relative;
@@ -978,6 +1322,50 @@ textarea:focus {
   border-top: 1px solid var(--line);
   padding: 14px 20px 18px;
 }
+.media-preview {
+  display: flex;
+  max-width: 900px;
+  gap: 9px;
+  overflow-x: auto;
+  margin: 0 auto 10px;
+  padding: 2px 4px 5px;
+}
+.media-preview-item {
+  position: relative;
+  flex: 0 0 60px;
+  width: 60px;
+  height: 60px;
+}
+.media-preview-thumb {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--search-bg);
+  object-fit: cover;
+}
+.media-preview-remove {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  display: grid;
+  width: 21px;
+  height: 21px;
+  place-items: center;
+  border: 1px solid var(--paper);
+  border-radius: 50%;
+  padding: 0;
+  color: white;
+  background: #4b5563;
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+}
+.media-preview-remove:hover,
+.media-preview-remove:focus-visible {
+  background: #9f4739;
+}
 .composer {
   display: flex;
   align-items: flex-end;
@@ -987,6 +1375,8 @@ textarea:focus {
 }
 .composer textarea {
   display: block;
+  min-width: 0;
+  flex: 1;
   min-height: 44px;
   max-height: min(160px, 30dvh);
   overflow-y: hidden;
@@ -997,6 +1387,9 @@ textarea:focus {
 }
 .composer .primary {
   min-width: 76px;
+}
+.composer .media-attach {
+  flex: 0 0 auto;
 }
 .error-toast {
   position: fixed;

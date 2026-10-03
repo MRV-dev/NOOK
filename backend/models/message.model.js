@@ -14,10 +14,40 @@ const messageSchema = new mongoose.Schema(
     },
     content: {
       type: String,
-      required: true,
+      default: "",
       trim: true,
       maxlength: 10000,
     },
+    mediaUrl: {
+      type: String,
+      default: "",
+    },
+    mediaPublicId: {
+      type: String,
+      default: "",
+    },
+    mediaType: {
+      type: String,
+      enum: ["image", "video"],
+      default: undefined,
+    },
+    media: [
+      {
+        url: {
+          type: String,
+          required: true,
+        },
+        publicId: {
+          type: String,
+          required: true,
+        },
+        type: {
+          type: String,
+          enum: ["image", "video"],
+          required: true,
+        },
+      },
+    ],
     isDeleted: {
       type: Boolean,
       default: false,

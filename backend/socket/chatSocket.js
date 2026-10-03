@@ -5,6 +5,7 @@ const Message = require("../models/message.model");
 const User = require("../models/user.model");
 const { createMessageForUser } = require("../services/messageService");
 const { scheduleIncomingMessageEmail } = require("../services/emailService");
+const { deleteMediaAsset } = require("../services/cloudinaryService");
 
 const conversationRoom = (conversationId) => `conversation:${conversationId}`;
 
@@ -104,6 +105,19 @@ const attachChatSockets = (io) => {
       }
 
       try {
+        const existingMessage = await Message.findOne({
+          _id: messageId,
+          conversation: conversationId,
+          sender: user.id,
+          isDeleted: { $ne: true },
+        }).select("mediaPublicId mediaType media");
+        if (!existingMessage) {
+          return acknowledge?.({
+            ok: false,
+            message: "Message not found or you cannot delete it",
+          });
+        }
+
         const deletedAt = new Date();
         const message = await Message.findOneAndUpdate(
           {
@@ -122,6 +136,21 @@ const attachChatSockets = (io) => {
             message: "Message not found or you cannot delete it",
           });
         }
+
+        const cloudinaryAssets = (existingMessage.media || [])
+          .filter((asset) => asset.publicId && asset.type)
+          .map((asset) => ({ publicId: asset.publicId, mediaType: asset.type }));
+        if (existingMessage.mediaPublicId && existingMessage.mediaType) {
+          cloudinaryAssets.push({
+            publicId: existingMessage.mediaPublicId,
+            mediaType: existingMessage.mediaType,
+          });
+        }
+        cloudinaryAssets.forEach(({ publicId, mediaType }) => {
+          deleteMediaAsset({ publicId, mediaType }).catch((error) => {
+            console.error("Could not delete Cloudinary media:", error.message);
+          });
+        });
 
         io.to(room).emit("message:deleted", {
           conversationId,

@@ -211,7 +211,27 @@
         <div class="messages hidden" id="messages" aria-live="polite"></div>
         <div class="typing" id="typing-indicator"></div>
         <div class="composer-wrap hidden" id="composer-wrap">
+          <div class="media-preview hidden" id="media-preview" aria-label="Selected attachments"></div>
           <form class="composer" id="message-form">
+            <button
+              class="icon-button media-attach"
+              id="attach-media"
+              type="button"
+              aria-label="Attach image or video"
+              title="Attach image or video"
+            >
+              <svg viewBox="0 0 24 24">
+                <path d="m21.4 11.1-8.5 8.5a6 6 0 0 1-8.5-8.5l9.2-9.2a4 4 0 0 1 5.7 5.7l-9.2 9.2a2 2 0 0 1-2.8-2.8l8.5-8.5"></path>
+              </svg>
+            </button>
+            <input
+              class="hidden"
+              id="media-input"
+              type="file"
+              multiple
+              accept="image/jpeg,image/png,image/gif,image/webp,image/avif,video/mp4,video/webm,video/quicktime"
+              aria-label="Choose an image or video"
+            />
             <textarea
               id="message-input"
               rows="1"
@@ -224,6 +244,70 @@
         </div>
       </section>
     </main>
+    <dialog class="media-viewer" id="media-viewer" aria-label="Media viewer">
+        <div class="media-viewer-background" id="media-viewer-background" aria-hidden="true"></div>
+        <div class="media-viewer-toolbar">
+          <span class="media-viewer-counter" id="media-viewer-counter"></span>
+          <div class="media-viewer-actions">
+            <button
+              class="media-viewer-action"
+              id="media-viewer-download"
+              type="button"
+              aria-label="Download media"
+              title="Download"
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4m4-5 5 5 5-5m-5 5V3"></path>
+              </svg>
+            </button>
+            <button
+              class="media-viewer-action"
+              id="media-viewer-share"
+              type="button"
+              aria-label="Share media link"
+              title="Share"
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <circle cx="18" cy="5" r="3"></circle>
+                <circle cx="6" cy="12" r="3"></circle>
+                <circle cx="18" cy="19" r="3"></circle>
+                <path d="m8.7 10.7 6.6-4.4m-6.6 7 6.6 4.1"></path>
+              </svg>
+            </button>
+            <button
+              class="media-viewer-action"
+              id="media-viewer-close"
+              type="button"
+              aria-label="Close media viewer"
+              title="Close"
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="m18 6-12 12M6 6l12 12"></path>
+              </svg>
+            </button>
+          </div>
+        </div>
+        <button
+          class="media-viewer-nav media-viewer-previous"
+          id="media-viewer-previous"
+          type="button"
+          aria-label="Previous media"
+          title="Previous"
+        >
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6"></path></svg>
+        </button>
+      <div class="media-viewer-content" id="media-viewer-content"></div>
+        <button
+          class="media-viewer-nav media-viewer-next"
+          id="media-viewer-next"
+          type="button"
+          aria-label="Next media"
+          title="Next"
+        >
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"></path></svg>
+        </button>
+        <div class="media-viewer-thumbnails" id="media-viewer-thumbnails" aria-label="Conversation media"></div>
+    </dialog>
     <dialog class="group-dialog" id="group-dialog" aria-labelledby="group-dialog-title">
       <form class="group-form" id="group-form">
         <div class="group-dialog-header">

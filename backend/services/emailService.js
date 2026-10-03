@@ -123,15 +123,27 @@ const scheduleIncomingMessageEmail = ({ messageId, senderName, recipientIds, con
           _id: messageId,
           readBy: { $ne: recipientId },
           isDeleted: { $ne: true },
-        }).select("content");
+        }).select("content mediaType media");
         if (!unreadMessage) {
           return;
         }
 
+        const attachedMedia = unreadMessage.media || [];
+        const mediaPreview = attachedMedia.length > 1
+          ? `Sent ${attachedMedia.length} attachments`
+          : attachedMedia[0]?.type === "video" || unreadMessage.mediaType === "video"
+            ? "Sent a video"
+            : attachedMedia[0]?.type === "image" || unreadMessage.mediaType === "image"
+              ? "Sent an image"
+              : content;
+        const notificationContent = unreadMessage.content || (
+          mediaPreview
+        );
+
         await sendIncomingMessageEmail({
           senderName,
           recipientIds: [recipientId],
-          content: unreadMessage.content,
+          content: notificationContent,
           conversationName,
         });
       } catch (error) {
