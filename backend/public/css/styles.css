@@ -326,6 +326,7 @@ input:focus {
   flex: 1;
   min-height: 0;
   overflow: auto;
+  overscroll-behavior-y: contain;
   padding: 0 8px 14px;
 }
 .conversation-item,
