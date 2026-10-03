@@ -23,6 +23,15 @@ body {
     "Avenir Next",
     sans-serif;
 }
+html.chat-active,
+body.chat-active {
+  height: 100dvh;
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+body.chat-active {
+  min-height: 0;
+}
 button,
 input {
   font: inherit;
@@ -603,6 +612,7 @@ input:focus {
   flex-direction: column;
   gap: 12px;
   overflow-y: auto;
+  overscroll-behavior-y: contain;
   padding: 24px clamp(16px, 5vw, 72px);
   background-image: radial-gradient(#dfe8e1 0.7px, transparent 0.7px);
   background-size: 22px 22px;
@@ -829,6 +839,7 @@ input:focus {
   }
   .app-shell {
     grid-template-columns: minmax(0, 1fr);
+    min-height: 0;
   }
   .app-shell:not(.chat-open) .chat-pane {
     display: none;

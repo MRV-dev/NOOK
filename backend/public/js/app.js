@@ -89,6 +89,8 @@ const api = async (url, options = {}) => {
   return data;
 };
 const showChat = () => {
+  document.documentElement.classList.add("chat-active");
+  document.body.classList.add("chat-active");
   authScreen.classList.add("hidden");
   chatApp.classList.remove("hidden");
   document.getElementById("my-name").textContent = currentUser.username;
@@ -818,6 +820,8 @@ document.getElementById("logout").addEventListener("click", () => {
   onlineUsers.clear();
   chatApp.classList.add("hidden");
   chatApp.classList.remove("chat-open");
+  document.documentElement.classList.remove("chat-active");
+  document.body.classList.remove("chat-active");
   authScreen.classList.remove("hidden");
   authForm.reset();
   setAuthMode(false);
