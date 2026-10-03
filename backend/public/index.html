@@ -145,6 +145,19 @@
             <h2 id="chat-title"></h2>
             <p id="chat-status"></p>
           </div>
+          <button
+            class="icon-button hidden"
+            id="add-group-members-button"
+            type="button"
+            aria-label="Add people to group"
+            title="Add people to group"
+          >
+            <svg viewBox="0 0 24 24">
+              <path d="M16 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+              <circle cx="10" cy="7" r="4"></circle>
+              <path d="M20 8v6m3-3h-6"></path>
+            </svg>
+          </button>
         </header>
         <div class="empty-state" id="welcome-state">
           <div class="empty-symbol">C</div>
@@ -214,6 +227,66 @@
           </button>
         </div>
         <p class="notice" id="group-notice" role="status"></p>
+      </form>
+    </dialog>
+    <dialog
+      class="group-dialog"
+      id="add-members-dialog"
+      aria-labelledby="add-members-title"
+    >
+      <form class="group-form" id="add-members-form">
+        <div class="group-dialog-header">
+          <div>
+            <span class="eyebrow" id="add-members-group-name"></span>
+            <h2 id="add-members-title">Add people</h2>
+          </div>
+          <button
+            class="icon-button"
+            id="add-members-close"
+            type="button"
+            aria-label="Close"
+          >
+            <svg viewBox="0 0 24 24">
+              <path d="m18 6-12 12M6 6l12 12"></path>
+            </svg>
+          </button>
+        </div>
+        <label class="field" for="add-members-search">
+          Search people
+          <input
+            id="add-members-search"
+            type="search"
+            placeholder="Search by name or email"
+            autocomplete="off"
+          />
+        </label>
+        <div
+          class="group-selected"
+          id="add-members-selected"
+          aria-live="polite"
+        ></div>
+        <div
+          class="group-results"
+          id="add-members-results"
+          aria-label="People search results"
+        ></div>
+        <p class="group-hint" id="add-members-hint" aria-live="polite">
+          Choose one or more people to add.
+        </p>
+        <div class="group-dialog-actions">
+          <button class="text-button" id="add-members-cancel" type="button">
+            Cancel
+          </button>
+          <button
+            class="primary"
+            id="add-members-submit"
+            type="submit"
+            disabled
+          >
+            Add to group
+          </button>
+        </div>
+        <p class="notice" id="add-members-notice" role="status"></p>
       </form>
     </dialog>
     <div class="message-toast-region" aria-live="polite" aria-atomic="true">

@@ -20,6 +20,14 @@ const groupResults = document.getElementById("group-results");
 const groupHint = document.getElementById("group-hint");
 const groupNotice = document.getElementById("group-notice");
 const groupSubmitButton = document.getElementById("group-submit-button");
+const addMembersDialog = document.getElementById("add-members-dialog");
+const addMembersForm = document.getElementById("add-members-form");
+const addMembersSearch = document.getElementById("add-members-search");
+const addMembersSelected = document.getElementById("add-members-selected");
+const addMembersResults = document.getElementById("add-members-results");
+const addMembersHint = document.getElementById("add-members-hint");
+const addMembersNotice = document.getElementById("add-members-notice");
+const addMembersSubmit = document.getElementById("add-members-submit");
 const messages = document.getElementById("messages");
 const messageToast = document.getElementById("message-toast");
 const messageToastSender = document.getElementById("message-toast-sender");
@@ -35,6 +43,9 @@ let searchTimeout = null;
 let groupSearchTimeout = null;
 let groupSearchMatches = [];
 const selectedGroupMembers = new Map();
+let addMemberSearchTimeout = null;
+let addMemberSearchMatches = [];
+const selectedMembersToAdd = new Map();
 let messageToastTimeout = null;
 let notificationConversationId = null;
 let typingTimeout = null;
@@ -146,6 +157,9 @@ const setConversationHeader = (conversation) => {
       : otherId && onlineUsers.has(otherId)
         ? "Online"
         : "Direct conversation";
+  document
+    .getElementById("add-group-members-button")
+    .classList.toggle("hidden", conversation.type !== "group");
 };
 const renderConversation = (conversation) => {
   const other = conversation.participants.find(
@@ -189,8 +203,10 @@ const loadConversations = async () => {
     conversationList.replaceChildren(...conversations.map(renderConversation));
     document.getElementById("conversation-count").textContent =
       conversations.length ? String(conversations.length) : "";
+    return conversations;
   } catch (error) {
     showError(error.message);
+    return [];
   }
 };
 const showMessageNotification = ({ conversationId, sender, content }) => {
@@ -456,6 +472,155 @@ groupForm.addEventListener("submit", async (event) => {
   }
 });
 
+const updateAddMembersSelection = () => {
+  addMembersSelected.replaceChildren();
+  selectedMembersToAdd.forEach((person) => {
+    const member = document.createElement("span");
+    member.className = "group-selected-person";
+    const name = document.createElement("span");
+    name.textContent = person.username;
+    const remove = document.createElement("button");
+    remove.type = "button";
+    remove.setAttribute("aria-label", `Remove ${person.username}`);
+    remove.innerHTML = '<svg viewBox="0 0 24 24"><path d="m18 6-12 12M6 6l12 12"></path></svg>';
+    remove.addEventListener("click", () => {
+      selectedMembersToAdd.delete(person._id);
+      updateAddMembersSelection();
+      renderAddMemberResults();
+    });
+    member.append(name, remove);
+    addMembersSelected.append(member);
+  });
+
+  addMembersHint.textContent = selectedMembersToAdd.size
+    ? `${selectedMembersToAdd.size} selected. Choose one or more people to add.`
+    : "Choose one or more people to add.";
+  addMembersSubmit.disabled = selectedMembersToAdd.size === 0;
+};
+
+const renderAddMemberResults = () => {
+  addMembersResults.replaceChildren();
+  const currentMemberIds = new Set(
+    (currentConversation?.participants || []).map((person) => person._id),
+  );
+  const availablePeople = addMemberSearchMatches.filter(
+    (person) => !currentMemberIds.has(person._id),
+  );
+
+  if (!availablePeople.length) {
+    const empty = document.createElement("p");
+    empty.className = "group-empty";
+    empty.textContent = addMembersSearch.value.trim().length >= 2
+      ? "No new people found"
+      : "Search by name or email to add people";
+    addMembersResults.append(empty);
+    return;
+  }
+
+  availablePeople.forEach((person) => {
+    const selected = selectedMembersToAdd.has(person._id);
+    const result = document.createElement("button");
+    result.type = "button";
+    result.className = `search-result group-member${selected ? " selected" : ""}`;
+    result.setAttribute("aria-pressed", String(selected));
+    const avatar = document.createElement("span");
+    avatar.className = `avatar small${onlineUsers.has(person._id) ? " online" : ""}`;
+    avatar.textContent = initials(person.username);
+    const name = document.createElement("strong");
+    name.textContent = person.username;
+    const state = document.createElement("span");
+    state.className = "group-member-state";
+    state.textContent = selected ? "Selected" : "Add";
+    result.append(avatar, name, state);
+    result.addEventListener("click", () => {
+      if (selectedMembersToAdd.has(person._id))
+        selectedMembersToAdd.delete(person._id);
+      else selectedMembersToAdd.set(person._id, person);
+      updateAddMembersSelection();
+      renderAddMemberResults();
+    });
+    addMembersResults.append(result);
+  });
+};
+
+const resetAddMembersDialog = () => {
+  clearTimeout(addMemberSearchTimeout);
+  addMembersForm.reset();
+  addMemberSearchMatches = [];
+  selectedMembersToAdd.clear();
+  addMembersResults.replaceChildren();
+  addMembersNotice.textContent = "";
+  document.getElementById("add-members-group-name").textContent =
+    currentConversation?.name || "Group chat";
+  updateAddMembersSelection();
+};
+
+document
+  .getElementById("add-group-members-button")
+  .addEventListener("click", () => {
+    resetAddMembersDialog();
+    addMembersDialog.showModal();
+    addMembersSearch.focus();
+  });
+document
+  .getElementById("add-members-close")
+  .addEventListener("click", () => addMembersDialog.close());
+document
+  .getElementById("add-members-cancel")
+  .addEventListener("click", () => addMembersDialog.close());
+addMembersDialog.addEventListener("click", (event) => {
+  if (event.target === addMembersDialog) addMembersDialog.close();
+});
+addMembersSearch.addEventListener("input", () => {
+  clearTimeout(addMemberSearchTimeout);
+  const query = addMembersSearch.value.trim();
+  if (query.length < 2) {
+    addMemberSearchMatches = [];
+    renderAddMemberResults();
+    return;
+  }
+
+  addMemberSearchTimeout = setTimeout(async () => {
+    try {
+      addMemberSearchMatches = await api(
+        `/api/users/search?q=${encodeURIComponent(query)}`,
+      );
+      renderAddMemberResults();
+    } catch (error) {
+      addMembersNotice.textContent = error.message;
+    }
+  }, 220);
+});
+addMembersForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  if (!currentConversation) return;
+
+  addMembersNotice.textContent = "";
+  addMembersSubmit.disabled = true;
+  addMembersSubmit.textContent = "Adding...";
+  try {
+    const updatedConversation = await api(
+      `/api/conversations/${currentConversation._id}/participants`,
+      {
+        method: "POST",
+        body: JSON.stringify({
+          participants: [...selectedMembersToAdd.keys()],
+        }),
+      },
+    );
+    currentConversation = updatedConversation;
+    setConversationHeader(updatedConversation);
+    addMembersDialog.close();
+    resetAddMembersDialog();
+    await loadConversations();
+  } catch (error) {
+    addMembersNotice.textContent = error.message;
+  } finally {
+    addMembersSubmit.textContent = "Add to group";
+    addMembersSubmit.disabled = selectedMembersToAdd.size === 0;
+  }
+});
+
 document.getElementById("message-form").addEventListener("submit", (event) => {
   event.preventDefault();
   const input = document.getElementById("message-input");
@@ -524,6 +689,18 @@ const connectSocket = () => {
     loadConversations();
   });
   socket.on("message:notification", showMessageNotification);
+  socket.on("conversation:updated", async ({ conversationId }) => {
+    const conversations = await loadConversations();
+    if (currentConversation?._id === conversationId) {
+      const updatedConversation = conversations.find(
+        (conversation) => conversation._id === conversationId,
+      );
+      if (updatedConversation) {
+        currentConversation = updatedConversation;
+        setConversationHeader(updatedConversation);
+      }
+    }
+  });
   socket.on("typing:update", ({ conversationId, user, isTyping: typing }) => {
     if (currentConversation?._id === conversationId)
       document.getElementById("typing-indicator").textContent = typing

@@ -200,6 +200,7 @@ input:focus {
 .sidebar {
   display: flex;
   min-width: 0;
+  min-height: 0;
   flex-direction: column;
   border-right: 1px solid var(--line);
   background: #fbfcfb;
@@ -323,6 +324,7 @@ input:focus {
 }
 .conversation-list {
   flex: 1;
+  min-height: 0;
   overflow: auto;
   padding: 0 8px 14px;
 }
@@ -376,10 +378,11 @@ input:focus {
 }
 .sidebar-foot {
   display: flex;
+  flex: 0 0 auto;
   align-items: center;
   justify-content: space-between;
   border-top: 1px solid var(--line);
-  padding: 12px 16px;
+  padding: 12px 16px 16px;
 }
 .search-results {
   position: absolute;

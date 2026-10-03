@@ -87,4 +87,77 @@ const createConversation = async (req, res, next) => {
   }
 };
 
-module.exports = { getMyConversations, createConversation };
+const addParticipants = async (req, res, next) => {
+  try {
+    const userId = req.user?._id;
+    if (!userId) {
+      return res.status(401).json({ message: "Authentication required" });
+    }
+    if (!mongoose.isValidObjectId(req.params.conversationId)) {
+      return res.status(400).json({ message: "Invalid conversation ID" });
+    }
+
+    const requestedParticipants = req.body?.participants;
+    if (!Array.isArray(requestedParticipants) || requestedParticipants.length === 0) {
+      return res.status(400).json({ message: "Select at least one person to add" });
+    }
+
+    const participantIds = [...new Set(requestedParticipants)];
+    if (
+      participantIds.some(
+        (participantId) =>
+          typeof participantId !== "string" || !mongoose.isValidObjectId(participantId),
+      )
+    ) {
+      return res.status(400).json({ message: "Participants must be valid user IDs" });
+    }
+
+    const conversation = await Conversation.findOne({
+      _id: req.params.conversationId,
+      type: "group",
+      participants: userId,
+    }).select("participants");
+    if (!conversation) {
+      return res.status(404).json({ message: "Group conversation not found" });
+    }
+
+    const existingIds = new Set(conversation.participants.map((id) => id.toString()));
+    const newParticipantIds = participantIds.filter((id) => !existingIds.has(id));
+    if (!newParticipantIds.length) {
+      return res.status(400).json({ message: "Those people are already in this group" });
+    }
+
+    const existingUserCount = await User.countDocuments({
+      _id: { $in: newParticipantIds },
+    });
+    if (existingUserCount !== newParticipantIds.length) {
+      return res.status(400).json({ message: "One or more people do not exist" });
+    }
+
+    await Conversation.updateOne(
+      { _id: conversation._id, participants: userId },
+      { $addToSet: { participants: { $each: newParticipantIds } } },
+    );
+
+    const updatedConversation = await Conversation.findById(conversation._id)
+      .populate("participants", "username avatarUrl")
+      .populate({
+        path: "lastMessage",
+        select: "content sender createdAt",
+        populate: { path: "sender", select: "username avatarUrl" },
+      });
+
+    const io = req.app.get("io");
+    updatedConversation.participants.forEach((participant) => {
+      io?.to(`user:${participant._id}`).emit("conversation:updated", {
+        conversationId: updatedConversation._id,
+      });
+    });
+
+    return res.json(updatedConversation);
+  } catch (error) {
+    return next(error);
+  }
+};
+
+module.exports = { getMyConversations, createConversation, addParticipants };
