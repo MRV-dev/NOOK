@@ -1,8 +1,10 @@
 const jwt = require("jsonwebtoken");
 const mongoose = require("mongoose");
 const Conversation = require("../models/conversation.model");
+const Message = require("../models/message.model");
 const User = require("../models/user.model");
 const { createMessageForUser } = require("../services/messageService");
+const { scheduleIncomingMessageEmail } = require("../services/emailService");
 
 const conversationRoom = (conversationId) => `conversation:${conversationId}`;
 
@@ -69,6 +71,71 @@ const attachChatSockets = (io) => {
       }
     });
 
+    socket.on("conversation:read", async (payload = {}, acknowledge) => {
+      const conversationId = payload.conversationId;
+      const room = conversationRoom(conversationId);
+
+      if (!mongoose.isValidObjectId(conversationId) || !socket.rooms.has(room)) {
+        return acknowledge?.({ ok: false, message: "Join the conversation first" });
+      }
+
+      try {
+        await Message.updateMany(
+          { conversation: conversationId, readBy: { $ne: user.id } },
+          { $addToSet: { readBy: user.id } },
+        );
+        return acknowledge?.({ ok: true });
+      } catch {
+        return acknowledge?.({ ok: false, message: "Could not update read status" });
+      }
+    });
+
+    socket.on("message:delete", async (payload = {}, acknowledge) => {
+      const conversationId = payload.conversationId;
+      const messageId = payload.messageId;
+      const room = conversationRoom(conversationId);
+
+      if (
+        !mongoose.isValidObjectId(conversationId) ||
+        !mongoose.isValidObjectId(messageId) ||
+        !socket.rooms.has(room)
+      ) {
+        return acknowledge?.({ ok: false, message: "Join the conversation first" });
+      }
+
+      try {
+        const deletedAt = new Date();
+        const message = await Message.findOneAndUpdate(
+          {
+            _id: messageId,
+            conversation: conversationId,
+            sender: user.id,
+            isDeleted: { $ne: true },
+          },
+          { $set: { content: "Message deleted", isDeleted: true, deletedAt } },
+          { new: true },
+        );
+
+        if (!message) {
+          return acknowledge?.({
+            ok: false,
+            message: "Message not found or you cannot delete it",
+          });
+        }
+
+        io.to(room).emit("message:deleted", {
+          conversationId,
+          messageId: message._id.toString(),
+          content: message.content,
+          isDeleted: message.isDeleted,
+          deletedAt: message.deletedAt,
+        });
+        return acknowledge?.({ ok: true });
+      } catch {
+        return acknowledge?.({ ok: false, message: "Could not delete message" });
+      }
+    });
+
     socket.on("message:send", async (payload = {}, acknowledge) => {
       const conversationId = payload.conversationId;
       const content = typeof payload.content === "string" ? payload.content.trim() : "";
@@ -88,7 +155,7 @@ const attachChatSockets = (io) => {
         const conversation = await Conversation.findOne({
           _id: conversationId,
           participants: user.id,
-        }).select("participants");
+        }).select("participants type name");
         if (!conversation) {
           return acknowledge?.({ ok: false, message: "Conversation not found" });
         }
@@ -104,16 +171,29 @@ const attachChatSockets = (io) => {
         }
 
         socket.to(room).emit("message:new", message);
-          conversation.participants.forEach((participantId) => {
-          const participantUserId = participantId.toString();
-          if (participantUserId !== user.id) {
-            io.to(`user:${participantUserId}`).emit("message:notification", {
-              conversationId,
-              sender: message.sender,
-              content: message.content,
-            });
-          }
+
+        const recipientIds = conversation.participants
+          .map((participantId) => participantId.toString())
+          .filter((participantId) => participantId !== user.id);
+
+        recipientIds.forEach((participantUserId) => {
+          io.to(`user:${participantUserId}`).emit("message:notification", {
+            conversationId,
+            sender: message.sender,
+            content: message.content,
+          });
         });
+
+        if (recipientIds.length) {
+          scheduleIncomingMessageEmail({
+            messageId: message._id,
+            senderName: message.sender?.username || user.username,
+            recipientIds,
+            content: message.content,
+            conversationName: conversation.type === "group" ? conversation.name : "",
+          });
+        }
+
         return acknowledge?.({ ok: true, message });
       } catch {
         return acknowledge?.({ ok: false, message: "Could not send message" });

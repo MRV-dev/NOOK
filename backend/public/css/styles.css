@@ -784,6 +784,12 @@ textarea:focus {
   align-self: flex-end;
   align-items: flex-end;
 }
+.message-content {
+  display: flex;
+  max-width: 100%;
+  align-items: center;
+  gap: 7px;
+}
 .message-meta {
   color: var(--muted);
   font-size: 11px;
@@ -801,6 +807,66 @@ textarea:focus {
   border-color: var(--mine-border);
   border-radius: 14px 4px 14px 14px;
   background: var(--mine-bg);
+}
+.bubble.deleted {
+  color: var(--muted);
+  font-style: italic;
+}
+.message-actions {
+  position: relative;
+  flex: 0 0 auto;
+}
+.message-actions summary {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  border: 1px solid var(--bubble-border);
+  border-radius: 50%;
+  color: var(--muted);
+  background: var(--bubble-bg);
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+  list-style: none;
+}
+.message-actions summary::-webkit-details-marker {
+  display: none;
+}
+.message-actions summary:hover,
+.message-actions[open] summary {
+  color: var(--ink);
+  background: var(--hover-bg);
+}
+.message-menu {
+  position: absolute;
+  z-index: 5;
+  top: 50%;
+  right: calc(100% + 6px);
+  min-width: 140px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 4px;
+  background: var(--paper);
+  box-shadow: var(--shadow);
+  transform: translateY(-50%);
+}
+.message-delete {
+  width: 100%;
+  border: 0;
+  border-radius: 3px;
+  padding: 8px 10px;
+  color: var(--ink);
+  background: transparent;
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+.message-delete:hover,
+.message-delete:focus-visible {
+  color: var(--danger, #b42318);
+  background: var(--hover-bg);
 }
 .empty-state {
   display: grid;

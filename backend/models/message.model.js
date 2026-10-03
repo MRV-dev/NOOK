@@ -18,6 +18,14 @@ const messageSchema = new mongoose.Schema(
       trim: true,
       maxlength: 10000,
     },
+    isDeleted: {
+      type: Boolean,
+      default: false,
+    },
+    deletedAt: {
+      type: Date,
+      default: null,
+    },
     readBy: [
       {
         type: mongoose.Schema.Types.ObjectId,

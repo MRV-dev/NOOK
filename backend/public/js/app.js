@@ -294,6 +294,7 @@ const appendMessage = (message) => {
   const senderId = typeof sender === "object" ? sender?._id : sender;
   const row = document.createElement("div");
   row.className = `message-row${senderId === currentUser.id ? " mine" : ""}`;
+  row.dataset.messageId = message._id;
   if (senderId !== currentUser.id) {
     const meta = document.createElement("div");
     meta.className = "message-meta";
@@ -303,15 +304,47 @@ const appendMessage = (message) => {
   const bubble = document.createElement("div");
   bubble.className = "bubble";
   bubble.textContent = message.content;
+  if (message.isDeleted) bubble.classList.add("deleted");
+  const content = document.createElement("div");
+  content.className = "message-content";
+  if (senderId === currentUser.id && !message.isDeleted) {
+    const actions = document.createElement("details");
+    actions.className = "message-actions";
+    const trigger = document.createElement("summary");
+    trigger.textContent = "⋮";
+    trigger.setAttribute("aria-label", "Message options");
+    trigger.title = "Message options";
+    const menu = document.createElement("div");
+    menu.className = "message-menu";
+    const deleteButton = document.createElement("button");
+    deleteButton.className = "message-delete";
+    deleteButton.type = "button";
+    deleteButton.textContent = "Delete message";
+    menu.append(deleteButton);
+    actions.append(trigger, menu);
+    content.append(actions);
+  }
+  content.append(bubble);
   const time = document.createElement("div");
   time.className = "message-meta";
   time.textContent = new Date(message.createdAt).toLocaleTimeString([], {
     hour: "numeric",
     minute: "2-digit",
   });
-  row.append(bubble, time);
+  row.append(content, time);
   messages.append(row);
   messages.scrollTop = messages.scrollHeight;
+};
+const showMessageDeleted = ({ messageId }) => {
+  const row = [...messages.querySelectorAll(".message-row")].find(
+    (messageRow) => messageRow.dataset.messageId === messageId,
+  );
+  if (!row) return;
+
+  const bubble = row.querySelector(".bubble");
+  bubble.textContent = "Message deleted";
+  bubble.classList.add("deleted");
+  row.querySelector(".message-actions")?.remove();
 };
 const loadMessages = async (conversationId) => {
   try {
@@ -321,6 +354,7 @@ const loadMessages = async (conversationId) => {
     if (currentConversation?._id !== conversationId) return;
     messages.replaceChildren();
     history.forEach(appendMessage);
+    socket?.emit("conversation:read", { conversationId });
   } catch (error) {
     showError(error.message);
   }
@@ -806,6 +840,23 @@ messageInput.addEventListener("keydown", (event) => {
   event.preventDefault();
   messageInput.form?.requestSubmit();
 });
+messages.addEventListener("click", (event) => {
+  const deleteButton = event.target.closest(".message-delete");
+  if (!deleteButton || !currentConversation || !socket?.connected) return;
+
+  const row = deleteButton.closest(".message-row");
+  socket.emit(
+    "message:delete",
+    {
+      conversationId: currentConversation._id,
+      messageId: row.dataset.messageId,
+    },
+    (result) => {
+      if (!result?.ok) showError(result?.message || "Could not delete message");
+    },
+  );
+  deleteButton.closest("details")?.removeAttribute("open");
+});
 
 const connectSocket = () => {
   if (socket) socket.disconnect();
@@ -826,10 +877,13 @@ const connectSocket = () => {
     if (currentConversation) setConversationHeader(currentConversation);
   });
   socket.on("message:new", (message) => {
-    if (currentConversation?._id === message.conversation)
+    if (currentConversation?._id === message.conversation) {
       appendMessage(message);
+      socket.emit("conversation:read", { conversationId: message.conversation });
+    }
     loadConversations();
   });
+  socket.on("message:deleted", showMessageDeleted);
   socket.on("message:notification", showMessageNotification);
   socket.on("conversation:updated", async ({ conversationId }) => {
     const conversations = await loadConversations();
