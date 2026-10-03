@@ -483,6 +483,16 @@ textarea:focus {
   overscroll-behavior-y: contain;
   padding: 0 8px 14px;
 }
+.conversation-entry {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  border-radius: 7px;
+}
+.conversation-entry:hover,
+.conversation-entry:focus-within {
+  background: var(--hover-bg);
+}
 .conversation-item,
 .search-result {
   display: flex;
@@ -496,12 +506,71 @@ textarea:focus {
   background: transparent;
   cursor: pointer;
 }
+.conversation-item {
+  min-width: 0;
+  flex: 1;
+}
 .conversation-item:hover,
 .search-result:hover {
   background: var(--hover-bg);
 }
 .conversation-item.active {
   background: var(--selected-bg);
+}
+.conversation-actions {
+  position: relative;
+  flex: 0 0 auto;
+  margin-right: 5px;
+}
+.conversation-actions summary {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  border-radius: 50%;
+  color: var(--muted);
+  font-size: 21px;
+  line-height: 1;
+  cursor: pointer;
+  list-style: none;
+}
+.conversation-actions summary::-webkit-details-marker {
+  display: none;
+}
+.conversation-actions summary:hover,
+.conversation-actions[open] summary {
+  color: var(--ink);
+  background: var(--paper);
+}
+.conversation-menu {
+  position: absolute;
+  z-index: 6;
+  top: 50%;
+  right: calc(100% + 5px);
+  min-width: 160px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 4px;
+  background: var(--paper);
+  box-shadow: var(--shadow);
+  transform: translateY(-50%);
+}
+.conversation-hide {
+  width: 100%;
+  border: 0;
+  border-radius: 3px;
+  padding: 8px 10px;
+  color: var(--ink);
+  background: transparent;
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+.conversation-hide:hover,
+.conversation-hide:focus-visible {
+  color: var(--coral);
+  background: var(--hover-bg);
 }
 .conversation-copy {
   min-width: 0;

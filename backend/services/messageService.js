@@ -19,6 +19,7 @@ const createMessageForUser = async ({ conversationId, senderId, content }) => {
   });
 
   conversation.lastMessage = message._id;
+  conversation.hiddenFor = [];
   await conversation.save();
 
   return message.populate("sender", "username avatarUrl");

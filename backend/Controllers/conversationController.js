@@ -17,7 +17,10 @@ const getMyConversations = async (req, res, next) => {
       return res.status(401).json({ message: "Authentication required" });
     }
 
-    const conversations = await Conversation.find({ participants: userId })
+    const conversations = await Conversation.find({
+      participants: userId,
+      hiddenFor: { $ne: userId },
+    })
       .populate("participants", "username avatarUrl")
       .populate({
         path: "lastMessage",
@@ -75,10 +78,16 @@ const createConversation = async (req, res, next) => {
       const existingConversation = await Conversation.findOne({
         type: "direct",
         participants: { $all: participantIds, $size: participantIds.length },
-      }).populate("participants", "username avatarUrl");
+      });
 
       if (existingConversation) {
-        return res.json(existingConversation);
+        await Conversation.updateOne(
+          { _id: existingConversation._id },
+          { $pull: { hiddenFor: userId } },
+        );
+        const visibleConversation = await Conversation.findById(existingConversation._id)
+          .populate("participants", "username avatarUrl");
+        return res.json(visibleConversation);
       }
     }
 
@@ -205,9 +214,40 @@ const updateGroupName = async (req, res, next) => {
   }
 };
 
+const hideConversation = async (req, res, next) => {
+  try {
+    const userId = req.user?._id;
+    const { conversationId } = req.params;
+
+    if (!userId) {
+      return res.status(401).json({ message: "Authentication required" });
+    }
+    if (!mongoose.isValidObjectId(conversationId)) {
+      return res.status(400).json({ message: "Invalid conversation ID" });
+    }
+
+    const conversation = await Conversation.findOneAndUpdate(
+      { _id: conversationId, participants: userId },
+      { $addToSet: { hiddenFor: userId } },
+      { new: true },
+    );
+    if (!conversation) {
+      return res.status(404).json({ message: "Conversation not found" });
+    }
+
+    req.app.get("io")?.to(`user:${userId}`).emit("conversation:hidden", {
+      conversationId: conversation._id.toString(),
+    });
+    return res.json({ ok: true });
+  } catch (error) {
+    return next(error);
+  }
+};
+
 module.exports = {
   getMyConversations,
   createConversation,
   addParticipants,
   updateGroupName,
+  hideConversation,
 };

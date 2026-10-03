@@ -223,9 +223,12 @@ const renderConversation = (conversation) => {
     conversation.type === "group"
       ? conversation.name
       : other?.username || "Conversation";
+  const entry = document.createElement("div");
+  entry.className = "conversation-entry";
   const item = document.createElement("button");
   item.type = "button";
   item.className = `conversation-item${currentConversation?._id === conversation._id ? " active" : ""}`;
+  item.dataset.conversationId = conversation._id;
   const avatar = document.createElement("span");
   avatar.className = `avatar small${conversation.type === "direct" && other && onlineUsers.has(other._id) ? " online" : ""}`;
   avatar.textContent = initials(name);
@@ -249,7 +252,22 @@ const renderConversation = (conversation) => {
   copy.append(top, preview);
   item.append(avatar, copy);
   item.addEventListener("click", () => openConversation(conversation));
-  return item;
+  const actions = document.createElement("details");
+  actions.className = "conversation-actions";
+  const trigger = document.createElement("summary");
+  trigger.textContent = "⋮";
+  trigger.setAttribute("aria-label", "Conversation options");
+  trigger.title = "Conversation options";
+  const menu = document.createElement("div");
+  menu.className = "conversation-menu";
+  const hideButton = document.createElement("button");
+  hideButton.className = "conversation-hide";
+  hideButton.type = "button";
+  hideButton.textContent = "Delete chat";
+  menu.append(hideButton);
+  actions.append(trigger, menu);
+  entry.append(item, actions);
+  return entry;
 };
 const loadConversations = async () => {
   try {
@@ -263,6 +281,23 @@ const loadConversations = async () => {
     return [];
   }
 };
+conversationList.addEventListener("click", async (event) => {
+  const hideButton = event.target.closest(".conversation-hide");
+  if (!hideButton) return;
+
+  const conversationId = hideButton
+    .closest(".conversation-entry")
+    ?.querySelector(".conversation-item")?.dataset.conversationId;
+  if (!conversationId) return;
+
+  hideButton.disabled = true;
+  try {
+    await api(`/api/conversations/${conversationId}`, { method: "DELETE" });
+  } catch (error) {
+    showError(error.message);
+    hideButton.disabled = false;
+  }
+});
 const showMessageNotification = ({ conversationId, sender, content }) => {
   if (currentConversation?._id === conversationId) return;
 
@@ -897,6 +932,18 @@ const connectSocket = () => {
         if (groupDetailsDialog.open) renderGroupDetails();
       }
     }
+  });
+  socket.on("conversation:hidden", async ({ conversationId }) => {
+    if (currentConversation?._id === conversationId) {
+      currentConversation = null;
+      chatApp.classList.remove("chat-open");
+      document.getElementById("welcome-state").classList.remove("hidden");
+      document.getElementById("chat-header").classList.add("hidden");
+      document.getElementById("composer-wrap").classList.add("hidden");
+      messages.classList.add("hidden");
+      messages.replaceChildren();
+    }
+    await loadConversations();
   });
   socket.on("typing:update", ({ conversationId, user, isTyping: typing }) => {
     if (currentConversation?._id === conversationId)

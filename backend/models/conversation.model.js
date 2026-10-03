@@ -21,6 +21,12 @@ const conversationSchema = new mongoose.Schema(
         message: "A conversation must have at least two participants",
       },
     },
+    hiddenFor: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User",
+      },
+    ],
     name: {
       type: String,
       trim: true,
