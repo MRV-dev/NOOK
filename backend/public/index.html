@@ -73,21 +73,50 @@
       <aside class="sidebar">
         <div class="sidebar-head">
           <div class="brand">
-            <span class="brand-mark">C</span><span>TELEGRAM 2.0</span>
+            <span class="brand-mark">🎃</span><span>TELEGRAM 2.0</span>
           </div>
-          <button
-            class="icon-button"
-            id="create-group-button"
-            type="button"
-            aria-label="Create group chat"
-            title="Create group chat"
-          >
-            <svg viewBox="0 0 24 24">
-              <path d="M16 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
-              <circle cx="10" cy="7" r="4"></circle>
-              <path d="M20 8v6m3-3h-6"></path>
-            </svg>
-          </button>
+          <div class="sidebar-tools">
+            <details class="theme-menu" id="appearance-menu">
+              <summary
+                class="icon-button"
+                aria-label="Choose color theme"
+                title="Appearance"
+              >
+                <svg viewBox="0 0 24 24">
+                  <circle cx="12" cy="12" r="4"></circle>
+                  <path d="M12 2v2m0 16v2M4.93 4.93l1.42 1.42m11.3 11.3 1.42 1.42M2 12h2m16 0h2M4.93 19.07l1.42-1.42m11.3-11.3 1.42-1.42"></path>
+                </svg>
+              </summary>
+              <div class="theme-popover" role="radiogroup" aria-label="Color theme">
+                <span class="theme-popover-title">Appearance</span>
+                <label class="theme-option">
+                  <input type="radio" name="appearance" value="system" />
+                  <span>System</span>
+                </label>
+                <label class="theme-option">
+                  <input type="radio" name="appearance" value="light" />
+                  <span>Light</span>
+                </label>
+                <label class="theme-option">
+                  <input type="radio" name="appearance" value="dark" />
+                  <span>Dark</span>
+                </label>
+              </div>
+            </details>
+            <button
+              class="icon-button"
+              id="create-group-button"
+              type="button"
+              aria-label="Create group chat"
+              title="Create group chat"
+            >
+              <svg viewBox="0 0 24 24">
+                <path d="M16 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                <circle cx="10" cy="7" r="4"></circle>
+                <path d="M20 8v6m3-3h-6"></path>
+              </svg>
+            </button>
+          </div>
         </div>
         <div class="identity">
           <div class="avatar" id="my-avatar"></div>

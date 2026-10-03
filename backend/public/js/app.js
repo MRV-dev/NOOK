@@ -42,6 +42,10 @@ const messageToast = document.getElementById("message-toast");
 const messageToastSender = document.getElementById("message-toast-sender");
 const messageToastContent = document.getElementById("message-toast-content");
 const errorToast = document.getElementById("error-toast");
+const appearanceMenu = document.getElementById("appearance-menu");
+const appearanceOptions = document.querySelectorAll('input[name="appearance"]');
+const systemColorScheme = window.matchMedia("(prefers-color-scheme: dark)");
+const themeStorageKey = "real-time-chat-theme";
 let isRegistering = false;
 let token = sessionStorage.getItem("chat-token");
 let currentUser = null;
@@ -59,6 +63,42 @@ let messageToastTimeout = null;
 let notificationConversationId = null;
 let typingTimeout = null;
 let isTyping = false;
+let themePreference = "system";
+
+try {
+  const savedThemePreference = localStorage.getItem(themeStorageKey);
+  if (["system", "light", "dark"].includes(savedThemePreference)) {
+    themePreference = savedThemePreference;
+  }
+} catch {}
+
+const applyThemePreference = () => {
+  const useDarkTheme =
+    themePreference === "dark" ||
+    (themePreference === "system" && systemColorScheme.matches);
+  document.documentElement.dataset.theme = useDarkTheme ? "dark" : "light";
+  appearanceOptions.forEach((option) => {
+    option.checked = option.value === themePreference;
+  });
+};
+
+appearanceOptions.forEach((option) => {
+  option.addEventListener("change", () => {
+    if (!option.checked) return;
+    themePreference = option.value;
+    try {
+      localStorage.setItem(themeStorageKey, themePreference);
+    } catch {}
+    applyThemePreference();
+  });
+});
+systemColorScheme.addEventListener("change", () => {
+  if (themePreference === "system") applyThemePreference();
+});
+document.addEventListener("click", (event) => {
+  if (!appearanceMenu.contains(event.target)) appearanceMenu.open = false;
+});
+applyThemePreference();
 
 const initials = (name = "?") =>
   name
