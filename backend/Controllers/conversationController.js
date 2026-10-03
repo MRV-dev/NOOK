@@ -2,6 +2,14 @@ const mongoose = require("mongoose");
 const Conversation = require("../models/conversation.model");
 const User = require("../models/user.model");
 
+const emitConversationUpdated = (io, conversation) => {
+  conversation.participants.forEach((participant) => {
+    io?.to(`user:${participant._id}`).emit("conversation:updated", {
+      conversationId: conversation._id,
+    });
+  });
+};
+
 const getMyConversations = async (req, res, next) => {
   try {
     const userId = req.user?._id;
@@ -147,12 +155,7 @@ const addParticipants = async (req, res, next) => {
         populate: { path: "sender", select: "username avatarUrl" },
       });
 
-    const io = req.app.get("io");
-    updatedConversation.participants.forEach((participant) => {
-      io?.to(`user:${participant._id}`).emit("conversation:updated", {
-        conversationId: updatedConversation._id,
-      });
-    });
+    emitConversationUpdated(req.app.get("io"), updatedConversation);
 
     return res.json(updatedConversation);
   } catch (error) {
@@ -160,4 +163,51 @@ const addParticipants = async (req, res, next) => {
   }
 };
 
-module.exports = { getMyConversations, createConversation, addParticipants };
+const updateGroupName = async (req, res, next) => {
+  try {
+    const userId = req.user?._id;
+    if (!userId) {
+      return res.status(401).json({ message: "Authentication required" });
+    }
+    if (!mongoose.isValidObjectId(req.params.conversationId)) {
+      return res.status(400).json({ message: "Invalid conversation ID" });
+    }
+
+    const name = typeof req.body?.name === "string" ? req.body.name.trim() : "";
+    if (!name || name.length > 60) {
+      return res.status(400).json({ message: "Group name must be between 1 and 60 characters" });
+    }
+
+    const conversation = await Conversation.findOne({
+      _id: req.params.conversationId,
+      type: "group",
+      participants: userId,
+    });
+    if (!conversation) {
+      return res.status(404).json({ message: "Group conversation not found" });
+    }
+
+    conversation.name = name;
+    await conversation.save();
+
+    const updatedConversation = await Conversation.findById(conversation._id)
+      .populate("participants", "username avatarUrl")
+      .populate({
+        path: "lastMessage",
+        select: "content sender createdAt",
+        populate: { path: "sender", select: "username avatarUrl" },
+      });
+
+    emitConversationUpdated(req.app.get("io"), updatedConversation);
+    return res.json(updatedConversation);
+  } catch (error) {
+    return next(error);
+  }
+};
+
+module.exports = {
+  getMyConversations,
+  createConversation,
+  addParticipants,
+  updateGroupName,
+};

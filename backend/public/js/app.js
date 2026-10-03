@@ -28,6 +28,14 @@ const addMembersResults = document.getElementById("add-members-results");
 const addMembersHint = document.getElementById("add-members-hint");
 const addMembersNotice = document.getElementById("add-members-notice");
 const addMembersSubmit = document.getElementById("add-members-submit");
+const groupDetailsDialog = document.getElementById("group-details-dialog");
+const groupDetailsForm = document.getElementById("group-details-form");
+const groupDetailsName = document.getElementById("group-details-name");
+const groupDetailsParticipants = document.getElementById(
+  "group-details-participants",
+);
+const groupDetailsNotice = document.getElementById("group-details-notice");
+const groupDetailsSave = document.getElementById("group-details-save");
 const messages = document.getElementById("messages");
 const messageToast = document.getElementById("message-toast");
 const messageToastSender = document.getElementById("message-toast-sender");
@@ -159,6 +167,9 @@ const setConversationHeader = (conversation) => {
         : "Direct conversation";
   document
     .getElementById("add-group-members-button")
+    .classList.toggle("hidden", conversation.type !== "group");
+  document
+    .getElementById("group-details-button")
     .classList.toggle("hidden", conversation.type !== "group");
 };
 const renderConversation = (conversation) => {
@@ -621,6 +632,76 @@ addMembersForm.addEventListener("submit", async (event) => {
   }
 });
 
+const renderGroupDetails = () => {
+  if (!currentConversation || currentConversation.type !== "group") return;
+
+  groupDetailsName.value = currentConversation.name;
+  document.getElementById("group-details-count").textContent =
+    String(currentConversation.participants.length);
+  const participantRows = currentConversation.participants.map((person) => {
+    const row = document.createElement("div");
+    row.className = "group-person-row";
+    const avatar = document.createElement("span");
+    avatar.className = `avatar${onlineUsers.has(person._id) ? " online" : ""}`;
+    avatar.textContent = initials(person.username);
+    const name = document.createElement("span");
+    name.className = "group-person-name";
+    name.textContent = person.username;
+    const state = document.createElement("span");
+    state.className = "group-person-state";
+    state.textContent = person._id === currentUser.id
+      ? "You"
+      : onlineUsers.has(person._id)
+        ? "Online"
+        : "";
+    row.append(avatar, name, state);
+    return row;
+  });
+  groupDetailsParticipants.replaceChildren(...participantRows);
+};
+
+document.getElementById("group-details-button").addEventListener("click", () => {
+  groupDetailsNotice.textContent = "";
+  renderGroupDetails();
+  groupDetailsDialog.showModal();
+  groupDetailsName.focus();
+});
+document
+  .getElementById("group-details-close")
+  .addEventListener("click", () => groupDetailsDialog.close());
+document
+  .getElementById("group-details-cancel")
+  .addEventListener("click", () => groupDetailsDialog.close());
+groupDetailsDialog.addEventListener("click", (event) => {
+  if (event.target === groupDetailsDialog) groupDetailsDialog.close();
+});
+groupDetailsForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  if (!currentConversation || currentConversation.type !== "group") return;
+
+  groupDetailsNotice.textContent = "";
+  groupDetailsSave.disabled = true;
+  groupDetailsSave.textContent = "Saving...";
+  try {
+    const updatedConversation = await api(
+      `/api/conversations/${currentConversation._id}`,
+      {
+        method: "PATCH",
+        body: JSON.stringify({ name: groupDetailsName.value.trim() }),
+      },
+    );
+    currentConversation = updatedConversation;
+    setConversationHeader(updatedConversation);
+    renderGroupDetails();
+    await loadConversations();
+  } catch (error) {
+    groupDetailsNotice.textContent = error.message;
+  } finally {
+    groupDetailsSave.disabled = false;
+    groupDetailsSave.textContent = "Save name";
+  }
+});
+
 document.getElementById("message-form").addEventListener("submit", (event) => {
   event.preventDefault();
   const input = document.getElementById("message-input");
@@ -698,6 +779,7 @@ const connectSocket = () => {
       if (updatedConversation) {
         currentConversation = updatedConversation;
         setConversationHeader(updatedConversation);
+        if (groupDetailsDialog.open) renderGroupDetails();
       }
     }
   });
