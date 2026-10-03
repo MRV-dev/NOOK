@@ -136,7 +136,7 @@ button {
 }
 .field input,
 .search-input,
-.composer input {
+.composer textarea {
   width: 100%;
   min-width: 0;
   border: 1px solid #dfe6e0;
@@ -149,7 +149,8 @@ button {
   height: 43px;
   padding: 0 12px;
 }
-input:focus {
+input:focus,
+textarea:focus {
   border-color: #5c9b83;
   box-shadow: 0 0 0 3px rgba(29, 113, 92, 0.12);
 }
@@ -700,15 +701,20 @@ input:focus {
 }
 .composer {
   display: flex;
-  align-items: center;
+  align-items: flex-end;
   gap: 10px;
   max-width: 900px;
   margin: 0 auto;
 }
-.composer input {
-  height: 44px;
-  padding: 0 14px;
+.composer textarea {
+  display: block;
+  min-height: 44px;
+  max-height: min(160px, 30dvh);
+  overflow-y: hidden;
+  resize: none;
+  padding: 10px 14px;
   background: #f7f9f7;
+  line-height: 1.45;
 }
 .composer .primary {
   min-width: 76px;

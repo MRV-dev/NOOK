@@ -183,13 +183,14 @@
         <div class="typing" id="typing-indicator"></div>
         <div class="composer-wrap hidden" id="composer-wrap">
           <form class="composer" id="message-form">
-            <input
+            <textarea
               id="message-input"
+              rows="1"
               maxlength="10000"
               placeholder="Write a message..."
               autocomplete="off"
               aria-label="Message"
-            /><button class="primary" type="submit">Send</button>
+            ></textarea><button class="primary" type="submit">Send</button>
           </form>
         </div>
       </section>

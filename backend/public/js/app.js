@@ -37,6 +37,7 @@ const groupDetailsParticipants = document.getElementById(
 const groupDetailsNotice = document.getElementById("group-details-notice");
 const groupDetailsSave = document.getElementById("group-details-save");
 const messages = document.getElementById("messages");
+const messageInput = document.getElementById("message-input");
 const messageToast = document.getElementById("message-toast");
 const messageToastSender = document.getElementById("message-toast-sender");
 const messageToastContent = document.getElementById("message-toast-content");
@@ -235,6 +236,18 @@ const showMessageNotification = ({ conversationId, sender, content }) => {
     5500,
   );
   loadConversations();
+};
+const resizeMessageInput = () => {
+  messageInput.style.height = "44px";
+  const configuredMaxHeight = Number.parseFloat(
+    getComputedStyle(messageInput).maxHeight,
+  );
+  const maxHeight = Number.isFinite(configuredMaxHeight)
+    ? configuredMaxHeight
+    : 160;
+  messageInput.style.height = `${Math.min(messageInput.scrollHeight, maxHeight)}px`;
+  messageInput.style.overflowY =
+    messageInput.scrollHeight > maxHeight ? "auto" : "hidden";
 };
 const appendMessage = (message) => {
   const sender = message.sender;
@@ -706,8 +719,7 @@ groupDetailsForm.addEventListener("submit", async (event) => {
 
 document.getElementById("message-form").addEventListener("submit", (event) => {
   event.preventDefault();
-  const input = document.getElementById("message-input");
-  const content = input.value.trim();
+  const content = messageInput.value.trim();
   if (!content || !currentConversation || !socket?.connected) return;
   socket.emit(
     "message:send",
@@ -716,7 +728,8 @@ document.getElementById("message-form").addEventListener("submit", (event) => {
       if (!result?.ok)
         return showError(result?.message || "Could not send message");
       appendMessage(result.message);
-      input.value = "";
+      messageInput.value = "";
+      resizeMessageInput();
       loadConversations();
     },
   );
@@ -728,7 +741,8 @@ document.getElementById("message-form").addEventListener("submit", (event) => {
     isTyping = false;
   }
 });
-document.getElementById("message-input").addEventListener("input", () => {
+messageInput.addEventListener("input", () => {
+  resizeMessageInput();
   if (!currentConversation || !socket?.connected) return;
   if (!isTyping) {
     socket.emit("typing:set", {
@@ -746,6 +760,11 @@ document.getElementById("message-input").addEventListener("input", () => {
       });
     isTyping = false;
   }, 900);
+});
+messageInput.addEventListener("keydown", (event) => {
+  if (event.key !== "Enter" || event.shiftKey || event.isComposing) return;
+  event.preventDefault();
+  messageInput.form?.requestSubmit();
 });
 
 const connectSocket = () => {
