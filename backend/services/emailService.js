@@ -169,13 +169,21 @@ const scheduleIncomingMessageEmail = ({
 };
 
 const isPasswordResetEmailConfigured = () => {
-  if (process.env.RESEND_API_KEY) {
-    return Boolean(process.env.EMAIL_FROM);
+  const provider = getPasswordEmailProvider();
+  if (provider === "resend") {
+    return Boolean(process.env.RESEND_API_KEY && process.env.EMAIL_FROM);
   }
-
-  const { username, password } = getEmailConfig();
-  return Boolean(process.env.SMTP_HOST && username && password);
+  if (provider === "smtp") return isSmtpPasswordEmailConfigured();
+  return false;
 };
+
+const getPasswordEmailProvider = () =>
+  (
+    process.env.PASSWORD_EMAIL_PROVIDER ||
+    (process.env.RESEND_API_KEY ? "resend" : "smtp")
+  )
+    .trim()
+    .toLowerCase();
 
 const isSmtpPasswordEmailConfigured = () => {
   const { username, password } = getEmailConfig();
@@ -206,7 +214,7 @@ const escapeHtml = (value) =>
   });
 
 const deliverPasswordEmail = async (message) => {
-  if (process.env.RESEND_API_KEY) {
+  if (getPasswordEmailProvider() === "resend") {
     if (!process.env.EMAIL_FROM) {
       throw new Error("EMAIL_FROM is required when using Resend");
     }
@@ -232,6 +240,9 @@ const deliverPasswordEmail = async (message) => {
     return result;
   }
 
+  if (getPasswordEmailProvider() !== "smtp") {
+    throw new Error("PASSWORD_EMAIL_PROVIDER must be smtp or resend");
+  }
   const transporter = buildPasswordEmailTransport();
   if (!transporter) throw new Error("Password reset email is not configured");
   return transporter.sendMail(message);
