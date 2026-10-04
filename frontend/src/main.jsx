@@ -1236,7 +1236,7 @@ function App() {
           <aside className="sidebar">
             <div className="sidebar-head">
               <div className="brand">
-                <span className="brand-mark">C</span>
+                <span className="brand-mark">🎃</span>
                 <span>TELEGRAM 2.0</span>
               </div>
               <div className="sidebar-tools">
