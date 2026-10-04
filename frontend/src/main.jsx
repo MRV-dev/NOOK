@@ -166,18 +166,43 @@ function Dialog({ open, onClose, children, ...props }) {
   );
 }
 
-function AuthScreen({ token, onAuthenticated }) {
-  const [registering, setRegistering] = useState(false);
+function AuthScreen({ token, resetToken, onAuthenticated, onPasswordReset }) {
+  const [mode, setMode] = useState(() => (resetToken ? "reset" : "login"));
   const [notice, setNotice] = useState("");
+  const [noticeSuccess, setNoticeSuccess] = useState(false);
   const [busy, setBusy] = useState(false);
+  const registering = mode === "register";
   const submit = async (event) => {
     event.preventDefault();
     setBusy(true);
     setNotice("");
+    setNoticeSuccess(false);
     const form = new FormData(event.currentTarget);
-    const body = { email: form.get("email"), password: form.get("password") };
-    if (registering) body.username = form.get("username");
+    const password = form.get("password");
     try {
+      if (mode === "forgot") {
+        const result = await api("/api/users/forgot-password", token, {
+          method: "POST",
+          body: JSON.stringify({ email: form.get("email") }),
+        });
+        setNotice(result.message);
+        setNoticeSuccess(true);
+        return;
+      }
+      if (mode === "reset") {
+        const result = await api("/api/users/reset-password", null, {
+          method: "POST",
+          body: JSON.stringify({ token: resetToken, password }),
+        });
+        onPasswordReset();
+        setMode("login");
+        setNotice(result.message);
+        setNoticeSuccess(true);
+        return;
+      }
+
+      const body = { email: form.get("email"), password };
+      if (registering) body.username = form.get("username");
       const result = await api(
         `/api/users/${registering ? "register" : "login"}`,
         token,
@@ -190,6 +215,20 @@ function AuthScreen({ token, onAuthenticated }) {
       setBusy(false);
     }
   };
+
+  const heading = {
+    login: "Welcome back",
+    register: "Create your account",
+    forgot: "Forgot your password?",
+    reset: "Set a new password",
+  }[mode];
+  const subtitle = {
+    login: "Sign in to pick up where you left off.",
+    register: "A name and email are all you need to get started.",
+    forgot: "We’ll email a secure reset link if an account exists.",
+    reset: "Choose a new password for your account.",
+  }[mode];
+
   return (
     <main className="auth-screen">
       <section className="auth-panel">
@@ -205,12 +244,8 @@ function AuthScreen({ token, onAuthenticated }) {
         </div>
         <div className="auth-form-wrap">
           <span className="eyebrow">Your messages, together</span>
-          <h2>{registering ? "Create your account" : "Welcome back"}</h2>
-          <p className="subtle">
-            {registering
-              ? "A name and email are all you need to get started."
-              : "Sign in to pick up where you left off."}
-          </p>
+          <h2>{heading}</h2>
+          <p className="subtle">{subtitle}</p>
           <form onSubmit={submit}>
             {registering && (
               <label className="field">
@@ -224,52 +259,113 @@ function AuthScreen({ token, onAuthenticated }) {
                 />
               </label>
             )}
-            <label className="field">
-              Email
-              <input name="email" type="email" required autoComplete="email" />
-            </label>
-            <label className="field">
-              Password
-              <input
-                name="password"
-                type="password"
-                required
-                minLength="8"
-                autoComplete={registering ? "new-password" : "current-password"}
-              />
-            </label>
+            {mode !== "reset" && (
+              <label className="field">
+                Email
+                <input
+                  name="email"
+                  type="email"
+                  required
+                  autoComplete="email"
+                />
+              </label>
+            )}
+            {mode !== "forgot" && (
+              <label className="field">
+                {mode === "reset" ? "New password" : "Password"}
+                <input
+                  name="password"
+                  type="password"
+                  required
+                  minLength="8"
+                  maxLength="72"
+                  autoComplete={
+                    mode === "login" ? "current-password" : "new-password"
+                  }
+                />
+              </label>
+            )}
+            {mode === "login" && (
+              <p className="auth-forgot">
+                <button
+                  className="text-button"
+                  type="button"
+                  onClick={() => {
+                    setMode("forgot");
+                    setNotice("");
+                  }}
+                >
+                  Forgot password?
+                </button>
+              </p>
+            )}
             <button className="primary" type="submit" disabled={busy}>
               {busy
                 ? "Please wait..."
-                : registering
-                  ? "Create account"
-                  : "Sign in"}
+                : mode === "forgot"
+                  ? "Send reset link"
+                  : mode === "reset"
+                    ? "Update password"
+                    : registering
+                      ? "Create account"
+                      : "Sign in"}
             </button>
-            <p className="notice" role="status">
+            <p
+              className={`notice${noticeSuccess ? " success" : ""}`}
+              role="status"
+            >
               {notice}
             </p>
           </form>
           <p className="auth-switch">
-            <span>
-              {registering ? "Already have an account?" : "New here?"}
-            </span>{" "}
-            <button
-              className="text-button"
-              type="button"
-              onClick={() => {
-                setRegistering((value) => !value);
-                setNotice("");
-              }}
-            >
-              {registering ? "Sign in" : "Create an account"}
-            </button>
+            {mode === "login" && (
+              <>
+                <span>New here?</span>{" "}
+                <button
+                  className="text-button"
+                  type="button"
+                  onClick={() => {
+                    setMode("register");
+                    setNotice("");
+                  }}
+                >
+                  Create an account
+                </button>
+              </>
+            )}
+            {registering && (
+              <>
+                <span>Already have an account?</span>{" "}
+                <button
+                  className="text-button"
+                  type="button"
+                  onClick={() => {
+                    setMode("login");
+                    setNotice("");
+                  }}
+                >
+                  Sign in
+                </button>
+              </>
+            )}
+            {(mode === "forgot" || mode === "reset") && (
+              <button
+                className="text-button"
+                type="button"
+                onClick={() => {
+                  setMode("login");
+                  setNotice("");
+                }}
+              >
+                Back to sign in
+              </button>
+            )}
           </p>
         </div>
       </section>
     </main>
   );
 }
-
 function ConversationItem({
   conversation,
   user,
@@ -571,6 +667,9 @@ function MessageRow({
 function App() {
   const [token, setToken] = useState(() =>
     sessionStorage.getItem("chat-token"),
+  );
+  const [resetToken, setResetToken] = useState(() =>
+    new URLSearchParams(window.location.search).get("resetToken"),
   );
   const [user, setUser] = useState(null);
   const [conversations, setConversations] = useState([]);
@@ -1323,9 +1422,20 @@ function App() {
   const viewerItem = viewerItems[viewerIndex];
   return (
     <>
-      {!user ? (
+      {!user || resetToken ? (
         <AuthScreen
           token={token}
+          resetToken={resetToken}
+          onPasswordReset={() => {
+            const url = new URL(window.location.href);
+            url.searchParams.delete("resetToken");
+            window.history.replaceState(
+              {},
+              "",
+              `${url.pathname}${url.search}${url.hash}`,
+            );
+            setResetToken(null);
+          }}
           onAuthenticated={({ token: nextToken, user: nextUser }) => {
             sessionStorage.setItem("chat-token", nextToken);
             setToken(nextToken);

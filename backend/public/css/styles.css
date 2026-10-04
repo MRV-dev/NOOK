@@ -279,11 +279,19 @@ textarea:focus {
   text-align: center;
   font-size: 13px;
 }
+.auth-forgot {
+  margin: -7px 0 14px;
+  text-align: right;
+  font-size: 13px;
+}
 .notice {
   min-height: 20px;
   margin: 10px 0 0;
   color: #aa4738;
   font-size: 13px;
+}
+.notice.success {
+  color: var(--success-ink);
 }
 .app-shell {
   display: grid;

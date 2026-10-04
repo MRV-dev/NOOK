@@ -20,6 +20,16 @@ const userSchema = new mongoose.Schema(
       required: true,
       select: false,
     },
+    passwordResetTokenHash: {
+      type: String,
+      default: null,
+      select: false,
+    },
+    passwordResetExpires: {
+      type: Date,
+      default: null,
+      select: false,
+    },
     avatarUrl: {
       type: String,
       default: "",
@@ -29,7 +39,7 @@ const userSchema = new mongoose.Schema(
       default: null,
     },
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
 module.exports = mongoose.model("User", userSchema);
