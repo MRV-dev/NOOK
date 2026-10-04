@@ -890,13 +890,23 @@ function App() {
       const remoteStream = streams[0] || new MediaStream([track]);
       updateCall((activeCall) =>
         activeCall?.callId === callId
-          ? {
+          ? (() => {
+              const member = activeCall.members.find(
+                (item) => item.id === peer.id,
+              );
+              const updatedPeer = {
+                ...peer,
+                ...member,
+                stream: remoteStream,
+              };
+              return {
               ...activeCall,
               peers: [
                 ...activeCall.peers.filter((item) => item.id !== peer.id),
-                { ...peer, stream: remoteStream },
+                updatedPeer,
               ],
-            }
+              };
+            })()
           : activeCall,
       );
     };
@@ -1138,6 +1148,11 @@ function App() {
     const cameraOff = !activeCall.cameraOff;
     localStreamRef.current?.getVideoTracks().forEach((track) => {
       track.enabled = !cameraOff;
+    });
+    socketRef.current?.emit("call:camera", {
+      conversationId: activeCall.conversationId,
+      callId: activeCall.callId,
+      cameraOff,
     });
     updateCall({ ...activeCall, cameraOff });
   };
@@ -1435,6 +1450,26 @@ function App() {
           : activeCall,
       );
     });
+    socket.on("call:camera", ({ callId, participant }) => {
+      if (callRef.current?.callId !== callId) return;
+      updateCall((activeCall) =>
+        activeCall?.callId === callId
+          ? {
+              ...activeCall,
+              members: activeCall.members.map((member) =>
+                member.id === participant.id
+                  ? { ...member, cameraOff: participant.cameraOff }
+                  : member,
+              ),
+              peers: activeCall.peers.map((peer) =>
+                peer.id === participant.id
+                  ? { ...peer, cameraOff: participant.cameraOff }
+                  : peer,
+              ),
+            }
+          : activeCall,
+      );
+    });
     socket.on("call:ended", ({ callId }) => {
       if (callRef.current?.callId === callId) cleanupCall();
     });
@@ -1446,19 +1481,20 @@ function App() {
   }, [token, user]);
 
   useEffect(() => {
-    if (localVideoRef.current) {
-      localVideoRef.current.srcObject = call?.localStream || null;
-    }
-    if (desktopLocalVideoRef.current) {
-      desktopLocalVideoRef.current.srcObject = call?.localStream || null;
-    }
+    [localVideoRef.current, desktopLocalVideoRef.current].forEach((video) => {
+      if (!video) return;
+      if (video.srcObject !== (call?.localStream || null)) {
+        video.srcObject = call?.localStream || null;
+      }
+      if (call?.localStream && !call.cameraOff) video.play().catch(() => {});
+    });
     call?.peers?.forEach((peer) => {
       const video = peerVideoRefs.current.get(peer.id);
       if (!video) return;
       if (video.srcObject !== peer.stream) video.srcObject = peer.stream;
       video.play().catch(() => {});
     });
-  }, [call?.localStream, call?.peers]);
+  }, [call?.localStream, call?.cameraOff, call?.peers]);
 
   useEffect(() => {
     if (!call?.isGroup) return undefined;
@@ -2058,6 +2094,9 @@ function App() {
       8 * (groupCallColumns - 1),
   );
   const groupCallTileStyle = (index) => {
+    if (portraitCall && groupCallMemberCount === 3 && index === 2) {
+      return { gridColumn: "1 / -1" };
+    }
     const remainder = groupCallMemberCount % groupCallColumns;
     const lastRowStart = groupCallMemberCount - remainder;
     if (remainder && index >= lastRowStart) {
@@ -2977,7 +3016,14 @@ function App() {
                     )}
                     <span className="call-participant-name">You</span>
                     {call.cameraOff && (
-                      <span className="call-camera-off">Camera off</span>
+                      <span
+                        className="call-camera-off"
+                        role="img"
+                        aria-label="Camera off"
+                        title="Camera off"
+                      >
+                        <Icon name="cameraOff" />
+                      </span>
                     )}
                   </div>
                 )}
@@ -2997,7 +3043,17 @@ function App() {
                             : undefined
                         }
                       >
-                        {peer?.stream ? (
+                        {member.cameraOff ? (
+                          member.avatarUrl ? (
+                            <img
+                              className="call-participant-avatar"
+                              src={member.avatarUrl}
+                              alt=""
+                            />
+                          ) : (
+                            <Avatar name={member.username} />
+                          )
+                        ) : peer?.stream ? (
                           <video
                             className="call-participant-video"
                             ref={(element) => {
@@ -3017,6 +3073,16 @@ function App() {
                         ) : (
                           <Avatar name={member.username} />
                         )}
+                        {member.cameraOff && (
+                          <span
+                            className="call-camera-off"
+                            role="img"
+                            aria-label="Camera off"
+                            title="Camera off"
+                          >
+                            <Icon name="cameraOff" />
+                          </span>
+                        )}
                         <span className="call-participant-name">
                           {member.username}
                         </span>
@@ -3028,14 +3094,33 @@ function App() {
             {call.localStream &&
               ((!call.isGroup && !desktopDirectCall) || twoPersonGroupPip) && (
               <div className="call-local-tile">
-                <video
-                  className="call-local-video"
-                  ref={localVideoRef}
-                  autoPlay
-                  muted
-                  playsInline
-                />
-                {call.cameraOff && <span>Camera off</span>}
+                {!call.cameraOff ? (
+                  <video
+                    className="call-local-video"
+                    ref={localVideoRef}
+                    autoPlay
+                    muted
+                    playsInline
+                  />
+                ) : user.avatarUrl ? (
+                  <img
+                    className="call-participant-avatar"
+                    src={user.avatarUrl}
+                    alt=""
+                  />
+                ) : (
+                  <Avatar name={user.username} />
+                )}
+                {call.cameraOff && (
+                  <span
+                    className="call-camera-off"
+                    role="img"
+                    aria-label="Camera off"
+                    title="Camera off"
+                  >
+                    <Icon name="cameraOff" />
+                  </span>
+                )}
               </div>
             )}
           </div>

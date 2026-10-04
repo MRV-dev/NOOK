@@ -1949,14 +1949,20 @@ textarea:focus {
   white-space: nowrap;
 }
 .call-camera-off {
+  display: grid;
   position: absolute;
   right: 8px;
-  bottom: 9px;
+  bottom: 8px;
+  width: 24px;
+  height: 24px;
+  place-items: center;
   border-radius: 50%;
-  padding: 4px 7px;
   color: #fff;
   background: rgba(0, 0, 0, 0.58);
-  font-size: 10px;
+}
+.call-camera-off svg {
+  width: 14px;
+  height: 14px;
 }
 .call-remote-placeholder {
   display: grid;
