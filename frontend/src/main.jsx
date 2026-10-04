@@ -781,6 +781,7 @@ function App() {
   const [notification, setNotification] = useState(null);
   const [error, setError] = useState("");
   const [call, setCall] = useState(null);
+  const [availableCall, setAvailableCall] = useState(null);
   const [callChromeVisible, setCallChromeVisible] = useState(true);
   const [callViewport, setCallViewport] = useState(() => ({
     width: window.innerWidth,
@@ -1092,10 +1093,12 @@ function App() {
         },
       );
     } catch (reason) {
-      socketRef.current?.emit("call:reject", {
-        conversationId: activeCall.conversationId,
-        callId: activeCall.callId,
-      });
+      if (!activeCall.isRejoining) {
+        socketRef.current?.emit("call:reject", {
+          conversationId: activeCall.conversationId,
+          callId: activeCall.callId,
+        });
+      }
       cleanupCall();
       showError(
         reason.name === "NotAllowedError"
@@ -1115,20 +1118,43 @@ function App() {
     cleanupCall();
   };
 
+  const joinAvailableCall = () => {
+    const activeCall = availableCall;
+    if (!activeCall || callRef.current) return;
+    updateCall({
+      ...activeCall,
+      callerId: activeCall.caller.id,
+      peerName: activeCall.conversationName || activeCall.caller.username,
+      isGroup: true,
+      isRejoining: true,
+      status: "incoming",
+      signalingReady: true,
+      localStream: null,
+      peers: [],
+      members: [activeCall.caller],
+      declined: [],
+      muted: false,
+      cameraOff: false,
+    });
+    acceptCall();
+  };
+
   const endCall = () => {
     const activeCall = callRef.current;
     if (!activeCall) return;
-    socketRef.current?.emit(
-      activeCall.status === "incoming"
-        ? "call:reject"
-        : activeCall.callerId === user.id
-          ? "call:end"
-          : "call:leave",
-      {
-        conversationId: activeCall.conversationId,
-        callId: activeCall.callId,
-      },
-    );
+    if (!(activeCall.status === "incoming" && activeCall.isRejoining)) {
+      socketRef.current?.emit(
+        activeCall.status === "incoming"
+          ? "call:reject"
+          : activeCall.callerId === user.id
+            ? "call:end"
+            : "call:leave",
+        {
+          conversationId: activeCall.conversationId,
+          callId: activeCall.callId,
+        },
+      );
+    }
     cleanupCall();
   };
 
@@ -1325,6 +1351,9 @@ function App() {
       if (currentConversationRef.current?._id === conversationId)
         setTypingUser(isTyping ? `${sender.username} is typing...` : "");
     });
+    socket.on("call:available", (activeCall) => {
+      setAvailableCall(activeCall);
+    });
     socket.on("call:incoming", (incomingCall) => {
       if (callRef.current) {
         socket.emit("call:reject", incomingCall);
@@ -1470,8 +1499,11 @@ function App() {
           : activeCall,
       );
     });
-    socket.on("call:ended", ({ callId }) => {
+    socket.on("call:ended", ({ conversationId, callId }) => {
       if (callRef.current?.callId === callId) cleanupCall();
+      setAvailableCall((activeCall) =>
+        activeCall?.conversationId === conversationId ? null : activeCall,
+      );
     });
     return () => {
       active = false;
@@ -1669,6 +1701,7 @@ function App() {
         token,
       );
       if (currentConversationRef.current?._id !== conversation._id) return;
+      setAvailableCall(result.activeCall || null);
       setMessages(history);
       socketRef.current?.emit("conversation:read", {
         conversationId: conversation._id,
@@ -2305,20 +2338,32 @@ function App() {
                 )}
                 {currentConversation.type === "group" && (
                   <>
-                    <button
-                      className="icon-button call-start-button"
-                      type="button"
-                      aria-label={`Start group video call with ${headerName}`}
-                      title={
-                        onlineOtherParticipants.length
-                          ? "Start group video call"
-                          : "No other members are online"
-                      }
-                      disabled={!onlineOtherParticipants.length || Boolean(call)}
-                      onClick={startCall}
-                    >
-                      <Icon name="video" />
-                    </button>
+                    {availableCall?.conversationId === currentConversation._id ? (
+                      <button
+                        className="primary call-join-button"
+                        type="button"
+                        disabled={Boolean(call)}
+                        onClick={joinAvailableCall}
+                      >
+                        <Icon name="video" />
+                        Join call
+                      </button>
+                    ) : (
+                      <button
+                        className="icon-button call-start-button"
+                        type="button"
+                        aria-label={`Start group video call with ${headerName}`}
+                        title={
+                          onlineOtherParticipants.length
+                            ? "Start group video call"
+                            : "No other members are online"
+                        }
+                        disabled={!onlineOtherParticipants.length || Boolean(call)}
+                        onClick={startCall}
+                      >
+                        <Icon name="video" />
+                      </button>
+                    )}
                     <button
                       className="icon-button"
                       type="button"
@@ -3171,8 +3216,8 @@ function App() {
                 <button
                   className="call-control-button call-decline"
                   type="button"
-                  aria-label={call.callerId === user.id ? "End call for everyone" : "Leave call"}
-                  title={call.callerId === user.id ? "End call" : "Leave call"}
+                  aria-label="Leave call"
+                  title="Leave call"
                   onClick={endCall}
                 >
                   <Icon name="phone" />
