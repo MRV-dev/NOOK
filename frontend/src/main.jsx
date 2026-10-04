@@ -235,7 +235,7 @@ function AuthScreen({ token, resetToken, onAuthenticated, onPasswordReset }) {
         <div className="auth-aside">
           <div className="brand">
             <span className="brand-mark">🎃</span>
-            <span>TELEGRAM 2.0</span>
+            <span>NOOK</span>
           </div>
           <div>
             <h1>Good conversations start here.</h1>
@@ -1451,7 +1451,7 @@ function App() {
             <div className="sidebar-head">
               <div className="brand">
                 <span className="brand-mark">🎃</span>
-                <span>TELEGRAM 2.0</span>
+                <span>NOOK</span>
               </div>
               <div className="sidebar-tools">
                 <details className="theme-menu">
