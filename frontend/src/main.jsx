@@ -165,7 +165,7 @@ function AuthScreen({ token, onAuthenticated }) {
       <section className="auth-panel">
         <div className="auth-aside">
           <div className="brand">
-            <span className="brand-mark">C</span>
+            <span className="brand-mark">🎃</span>
             <span>TELEGRAM 2.0</span>
           </div>
           <div>
