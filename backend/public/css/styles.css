@@ -170,16 +170,11 @@ button {
     sans-serif;
 }
 .brand-mark {
-  display: grid;
+  display: block;
   width: 34px;
   height: 34px;
-  place-items: center;
+  flex: 0 0 auto;
   border-radius: 9px;
-  color: #1e4439;
-  background: #bfe3ce;
-  font:
-    800 24px/1 Manrope,
-    sans-serif;
 }
 .auth-aside h1 {
   max-width: 250px;

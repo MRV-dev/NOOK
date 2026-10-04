@@ -265,7 +265,7 @@ function AuthScreen({ token, resetToken, onAuthenticated, onPasswordReset }) {
       <section className="auth-panel">
         <div className="auth-aside">
           <div className="brand">
-            <span className="brand-mark">🎃</span>
+            <img className="brand-mark" src="/nook-logo.svg" alt="" />
             <span>NOOK</span>
           </div>
           <div>
@@ -1848,7 +1848,7 @@ function App() {
           <aside className="sidebar">
             <div className="sidebar-head">
               <div className="brand">
-                <span className="brand-mark">🎃</span>
+                <img className="brand-mark" src="/nook-logo.svg" alt="" />
                 <span>NOOK</span>
               </div>
               <div className="sidebar-tools">
