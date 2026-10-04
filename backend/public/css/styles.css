@@ -436,11 +436,11 @@ textarea:focus {
   border: 0;
   border-radius: 6px;
   background: transparent;
-  color: #68776f;
+  color: var(--muted);
   cursor: pointer;
 }
 .icon-button:hover {
-  background: #edf2ee;
+  background: var(--hover-bg);
   color: var(--ink);
 }
 .icon-button svg {
