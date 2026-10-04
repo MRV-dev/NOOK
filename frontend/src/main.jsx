@@ -30,6 +30,14 @@ const formatNames = (people) => {
   if (names.length === 2) return `${names[0]} and ${names[1]}`;
   return `${names.slice(0, -1).join(", ")}, and ${names.at(-1)}`;
 };
+const formatCallDuration = (seconds = 0) => {
+  const minutes = Math.floor(seconds / 60);
+  const remainingSeconds = seconds % 60;
+  if (!minutes) return `${remainingSeconds} sec`;
+  return remainingSeconds
+    ? `${minutes} min ${remainingSeconds} sec`
+    : `${minutes} min`;
+};
 
 const summarizeReactions = (reactions = [], currentUserId) => {
   const groups = new Map();
@@ -124,6 +132,29 @@ function Icon({ name, ...props }) {
     chat: (
       <path d="M21 11.5a8.4 8.4 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.4 8.4 0 0 1-3.8-.9L3 21l1.9-5.7a8.4 8.4 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.4 8.4 0 0 1 3.8-.9h.5a8.5 8.5 0 0 1 8 8v.5z" />
     ),
+    video: (
+      <>
+        <rect x="3" y="6" width="13" height="12" rx="2" />
+        <path d="m16 10 5-3v10l-5-3" />
+      </>
+    ),
+    microphone: (
+      <>
+        <rect x="9" y="2" width="6" height="12" rx="3" />
+        <path d="M5 10a7 7 0 0 0 14 0m-7 7v5m-4 0h8" />
+      </>
+    ),
+    micOff: (
+      <>
+        <path d="M9 9v5a3 3 0 0 0 5.1 2.1M15 9V5a3 3 0 0 0-5.8-1M5 10a7 7 0 0 0 12 4.9M19 10a7 7 0 0 1-.5 2.6M12 17v5m-4 0h8M3 3l18 18" />
+      </>
+    ),
+    cameraOff: (
+      <>
+        <path d="m16 10 5-3v10l-5-3M3 7a2 2 0 0 1 2-2h7M16 7v-.5A1.5 1.5 0 0 0 14.5 5H14M3 7v10a2 2 0 0 0 2 2h9a2 2 0 0 0 2-2v-1M3 3l18 18" />
+      </>
+    ),
+    phone: <path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.4 19.4 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7l.4 2.8a2 2 0 0 1-.6 1.7L7.5 9.6a16 16 0 0 0 6 6l1.4-1.4a2 2 0 0 1 1.7-.6l2.8.4a2 2 0 0 1 1.7 1.9z" />,
   };
   return (
     <svg
@@ -487,10 +518,55 @@ function MessageRow({
   onOpenMedia,
   onDownload,
   onReact,
+  onCallAgain,
+  canCallAgain,
 }) {
   const sender = message.sender;
   const senderId =
     typeof sender === "object" ? sender?._id || sender?.id : sender;
+  if (message.kind === "call") {
+    const status = message.callEvent?.status;
+    const description =
+      status === "completed"
+        ? formatCallDuration(message.callEvent.durationSeconds)
+        : status === "declined"
+          ? "Declined"
+          : status === "cancelled"
+            ? "Cancelled"
+            : "Missed";
+    return (
+      <div
+        className={`call-log${senderId === user.id ? " mine" : ""}`}
+        data-message-id={message._id}
+      >
+        <time className="call-log-time">
+          {new Date(message.createdAt).toLocaleTimeString([], {
+            hour: "numeric",
+            minute: "2-digit",
+          })}
+        </time>
+        <div className="call-log-card">
+          <div className="call-log-heading">
+            <span className="call-log-icon">
+              <Icon name="video" />
+            </span>
+            <span className="call-log-copy">
+              <strong>Video call</strong>
+              <span>{description}</span>
+            </span>
+          </div>
+          <button
+            className="call-log-again"
+            type="button"
+            disabled={!canCallAgain}
+            onClick={onCallAgain}
+          >
+            Call again
+          </button>
+        </div>
+      </div>
+    );
+  }
   if (message.kind === "system") {
     const actor = senderId === user.id ? "You" : sender?.username || "A member";
     const action =
@@ -704,8 +780,16 @@ function App() {
   const [viewerIndex, setViewerIndex] = useState(-1);
   const [notification, setNotification] = useState(null);
   const [error, setError] = useState("");
+  const [call, setCall] = useState(null);
   const socketRef = useRef(null);
   const currentConversationRef = useRef(null);
+  const callRef = useRef(null);
+  const peerConnectionRef = useRef(null);
+  const localStreamRef = useRef(null);
+  const queuedIceRef = useRef([]);
+  const pendingLocalIceRef = useRef([]);
+  const localVideoRef = useRef(null);
+  const remoteVideoRef = useRef(null);
   const mediaFilesRef = useRef([]);
   const messagesRef = useRef(null);
   const messageInputRef = useRef(null);
@@ -720,6 +804,253 @@ function App() {
     setError(message);
     clearTimeout(errorTimeoutRef.current);
     errorTimeoutRef.current = setTimeout(() => setError(""), 3500);
+  };
+
+  const updateCall = (update) => {
+    const next = typeof update === "function" ? update(callRef.current) : update;
+    callRef.current = next;
+    setCall(next);
+  };
+
+  const cleanupCall = () => {
+    peerConnectionRef.current?.close();
+    peerConnectionRef.current = null;
+    localStreamRef.current?.getTracks().forEach((track) => track.stop());
+    localStreamRef.current = null;
+    queuedIceRef.current = [];
+    pendingLocalIceRef.current = [];
+    updateCall(null);
+  };
+
+  const flushQueuedIce = async (peerConnection) => {
+    const candidates = queuedIceRef.current.splice(0);
+    for (const candidate of candidates) {
+      await peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
+    }
+  };
+
+  const createPeerConnection = (conversationId, callId) => {
+    const peerConnection = new RTCPeerConnection({
+      iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
+    });
+    peerConnectionRef.current = peerConnection;
+    peerConnection.onicecandidate = ({ candidate }) => {
+      if (!candidate || callRef.current?.callId !== callId) return;
+      const signal = {
+        conversationId,
+        callId,
+        candidate: candidate.toJSON(),
+      };
+      if (!callRef.current.signalingReady) {
+        pendingLocalIceRef.current.push(signal);
+      } else {
+        socketRef.current?.emit("call:ice", signal);
+      }
+    };
+    peerConnection.ontrack = ({ streams, track }) => {
+      const remoteStream = streams[0] || new MediaStream([track]);
+      updateCall((activeCall) =>
+        activeCall?.callId === callId
+          ? { ...activeCall, remoteStream }
+          : activeCall,
+      );
+    };
+    peerConnection.onconnectionstatechange = () => {
+      if (peerConnection.connectionState === "connected") {
+        updateCall((activeCall) =>
+          activeCall?.callId === callId
+            ? { ...activeCall, status: "connected" }
+            : activeCall,
+        );
+      } else if (peerConnection.connectionState === "failed") {
+        showError("The call connection failed");
+        endCall();
+      }
+    };
+    return peerConnection;
+  };
+
+  const startCall = async () => {
+    const activeConversation = currentConversationRef.current;
+    const recipient = activeConversation?.participants.find(
+      (participant) => participant._id !== user?.id,
+    );
+    if (
+      !activeConversation ||
+      activeConversation.type !== "direct" ||
+      !recipient ||
+      callRef.current
+    ) {
+      return;
+    }
+
+    const callId = crypto.randomUUID();
+    updateCall({
+      conversationId: activeConversation._id,
+      callId,
+      peerName: recipient.username,
+      status: "calling",
+      signalingReady: false,
+      localStream: null,
+      remoteStream: null,
+      muted: false,
+      cameraOff: false,
+    });
+    try {
+      const localStream = await navigator.mediaDevices.getUserMedia({
+        audio: true,
+        video: true,
+      });
+      if (callRef.current?.callId !== callId) {
+        localStream.getTracks().forEach((track) => track.stop());
+        return;
+      }
+      localStreamRef.current = localStream;
+      const peerConnection = createPeerConnection(
+        activeConversation._id,
+        callId,
+      );
+      localStream.getTracks().forEach((track) =>
+        peerConnection.addTrack(track, localStream),
+      );
+      updateCall((activeCall) =>
+        activeCall?.callId === callId
+          ? { ...activeCall, localStream }
+          : activeCall,
+      );
+      const offer = await peerConnection.createOffer();
+      await peerConnection.setLocalDescription(offer);
+      if (callRef.current?.callId !== callId) return;
+      socketRef.current?.emit(
+        "call:offer",
+        { conversationId: activeConversation._id, callId, offer },
+        (result) => {
+          if (result?.ok) {
+            updateCall((activeCall) =>
+              activeCall?.callId === callId
+                ? { ...activeCall, signalingReady: true }
+                : activeCall,
+            );
+            pendingLocalIceRef.current.splice(0).forEach((signal) => {
+              socketRef.current?.emit("call:ice", signal);
+            });
+            return;
+          }
+          if (callRef.current?.callId === callId) cleanupCall();
+          showError(result?.message || "Could not start the call");
+        },
+      );
+    } catch (reason) {
+      if (callRef.current?.callId === callId) cleanupCall();
+      showError(
+        reason.name === "NotAllowedError"
+          ? "Allow camera and microphone access to make a call"
+          : reason.message || "Could not access your camera and microphone",
+      );
+    }
+  };
+
+  const acceptCall = async () => {
+    const activeCall = callRef.current;
+    if (!activeCall || activeCall.status !== "incoming") return;
+    try {
+      const localStream = await navigator.mediaDevices.getUserMedia({
+        audio: true,
+        video: true,
+      });
+      if (callRef.current?.callId !== activeCall.callId) {
+        localStream.getTracks().forEach((track) => track.stop());
+        return;
+      }
+      localStreamRef.current = localStream;
+      const peerConnection = createPeerConnection(
+        activeCall.conversationId,
+        activeCall.callId,
+      );
+      localStream.getTracks().forEach((track) =>
+        peerConnection.addTrack(track, localStream),
+      );
+      await peerConnection.setRemoteDescription(
+        new RTCSessionDescription(activeCall.offer),
+      );
+      if (callRef.current?.callId !== activeCall.callId) return;
+      await flushQueuedIce(peerConnection);
+      const answer = await peerConnection.createAnswer();
+      await peerConnection.setLocalDescription(answer);
+      if (callRef.current?.callId !== activeCall.callId) return;
+      updateCall((current) =>
+        current?.callId === activeCall.callId
+          ? { ...current, status: "connecting", localStream }
+          : current,
+      );
+      socketRef.current?.emit(
+        "call:answer",
+        {
+          conversationId: activeCall.conversationId,
+          callId: activeCall.callId,
+          answer,
+        },
+        (result) => {
+          if (result?.ok) return;
+          if (callRef.current?.callId === activeCall.callId) cleanupCall();
+          showError(result?.message || "Could not answer the call");
+        },
+      );
+    } catch (reason) {
+      socketRef.current?.emit("call:reject", {
+        conversationId: activeCall.conversationId,
+        callId: activeCall.callId,
+      });
+      cleanupCall();
+      showError(
+        reason.name === "NotAllowedError"
+          ? "Allow camera and microphone access to answer"
+          : reason.message || "Could not answer the call",
+      );
+    }
+  };
+
+  const rejectCall = () => {
+    const activeCall = callRef.current;
+    if (!activeCall) return;
+    socketRef.current?.emit("call:reject", {
+      conversationId: activeCall.conversationId,
+      callId: activeCall.callId,
+    });
+    cleanupCall();
+  };
+
+  const endCall = () => {
+    const activeCall = callRef.current;
+    if (!activeCall) return;
+    socketRef.current?.emit(
+      activeCall.status === "incoming" ? "call:reject" : "call:end",
+      {
+        conversationId: activeCall.conversationId,
+        callId: activeCall.callId,
+      },
+    );
+    cleanupCall();
+  };
+
+  const toggleCallAudio = () => {
+    const activeCall = callRef.current;
+    if (!activeCall) return;
+    const muted = !activeCall.muted;
+    localStreamRef.current?.getAudioTracks().forEach((track) => {
+      track.enabled = !muted;
+    });
+    updateCall({ ...activeCall, muted });
+  };
+
+  const toggleCallVideo = () => {
+    const activeCall = callRef.current;
+    if (!activeCall) return;
+    const cameraOff = !activeCall.cameraOff;
+    localStreamRef.current?.getVideoTracks().forEach((track) => {
+      track.enabled = !cameraOff;
+    });
+    updateCall({ ...activeCall, cameraOff });
   };
 
   useEffect(() => {
@@ -870,12 +1201,78 @@ function App() {
       if (currentConversationRef.current?._id === conversationId)
         setTypingUser(isTyping ? `${sender.username} is typing...` : "");
     });
+    socket.on("call:incoming", (incomingCall) => {
+      if (callRef.current) {
+        socket.emit("call:reject", incomingCall);
+        return;
+      }
+      updateCall({
+        ...incomingCall,
+        peerName: incomingCall.caller.username,
+        status: "incoming",
+        signalingReady: true,
+        localStream: null,
+        remoteStream: null,
+        muted: false,
+        cameraOff: false,
+      });
+    });
+    socket.on("call:answer", async ({ callId, answer }) => {
+      if (callRef.current?.callId !== callId) return;
+      const peerConnection = peerConnectionRef.current;
+      if (!peerConnection) return;
+      try {
+        await peerConnection.setRemoteDescription(
+          new RTCSessionDescription(answer),
+        );
+        await flushQueuedIce(peerConnection);
+        updateCall((activeCall) =>
+          activeCall?.callId === callId
+            ? { ...activeCall, status: "connecting" }
+            : activeCall,
+        );
+      } catch (reason) {
+        showError(reason.message || "Could not connect the call");
+        endCall();
+      }
+    });
+    socket.on("call:ice", async ({ callId, candidate }) => {
+      if (callRef.current?.callId !== callId) return;
+      const peerConnection = peerConnectionRef.current;
+      if (!peerConnection?.remoteDescription) {
+        queuedIceRef.current.push(candidate);
+        return;
+      }
+      try {
+        await peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
+      } catch (reason) {
+        showError(reason.message || "Could not establish the call connection");
+      }
+    });
+    socket.on("call:rejected", ({ callId }) => {
+      if (callRef.current?.callId !== callId) return;
+      cleanupCall();
+      showError("The call was declined");
+    });
+    socket.on("call:ended", ({ callId }) => {
+      if (callRef.current?.callId === callId) cleanupCall();
+    });
     return () => {
       active = false;
       socket.disconnect();
       socketRef.current = null;
     };
   }, [token, user]);
+
+  useEffect(() => {
+    if (localVideoRef.current) {
+      localVideoRef.current.srcObject = call?.localStream || null;
+    }
+    if (remoteVideoRef.current) {
+      remoteVideoRef.current.srcObject = call?.remoteStream || null;
+      remoteVideoRef.current.play().catch(() => {});
+    }
+  }, [call?.localStream, call?.remoteStream]);
 
   useEffect(() => {
     const query = search.trim();
@@ -1370,6 +1767,7 @@ function App() {
   }, [viewerIndex, viewerItems.length]);
 
   const logout = () => {
+    endCall();
     socketRef.current?.disconnect();
     sessionStorage.removeItem("chat-token");
     setToken(null);
@@ -1594,6 +1992,18 @@ function App() {
                         : "Direct conversation"}
                   </p>
                 </div>
+                {currentConversation.type === "direct" && (
+                  <button
+                    className="icon-button call-start-button"
+                    type="button"
+                    aria-label={`Video call ${headerName}`}
+                    title={headerOnline ? "Start video call" : "User is offline"}
+                    disabled={!headerOnline || Boolean(call)}
+                    onClick={startCall}
+                  >
+                    <Icon name="video" />
+                  </button>
+                )}
                 {currentConversation.type === "group" && (
                   <>
                     <button
@@ -1639,6 +2049,12 @@ function App() {
                       onOpenMedia={openViewer}
                       onDownload={downloadMedia}
                       onReact={toggleReaction}
+                      onCallAgain={startCall}
+                      canCallAgain={
+                        currentConversation.type === "direct" &&
+                        headerOnline &&
+                        !call
+                      }
                     />
                   ))}
                 </div>
@@ -2193,6 +2609,125 @@ function App() {
         <div className="error-toast" role="alert">
           {error}
         </div>
+      )}
+      {call && (
+        <section
+          className={`call-overlay${call.status === "incoming" ? " is-incoming" : ""}`}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Video call"
+        >
+          <header className="call-topbar">
+            <div className="call-topbar-copy">
+              <strong>{call.peerName}</strong>
+              <span>
+                {call.status === "incoming"
+                  ? "Incoming video call"
+                  : call.status === "calling"
+                    ? "Calling..."
+                    : call.status === "connected"
+                      ? "Connected"
+                      : "Connecting..."}
+              </span>
+            </div>
+            <button
+              className="call-icon-button"
+              type="button"
+              aria-label="End call"
+              title="End call"
+              onClick={endCall}
+            >
+              <Icon name="close" />
+            </button>
+          </header>
+          <div className="call-stage">
+            {call.remoteStream ? (
+              <video
+                className="call-remote-video"
+                ref={remoteVideoRef}
+                autoPlay
+                playsInline
+              />
+            ) : (
+              <div className="call-remote-placeholder">
+                <Avatar name={call.peerName} />
+                <span>
+                  {call.status === "calling"
+                    ? "Waiting for them to answer"
+                    : call.status === "incoming"
+                      ? "is calling you"
+                      : "Connecting video..."}
+                </span>
+              </div>
+            )}
+            {call.localStream && (
+              <div className="call-local-tile">
+                <video
+                  className="call-local-video"
+                  ref={localVideoRef}
+                  autoPlay
+                  muted
+                  playsInline
+                />
+                {call.cameraOff && <span>Camera off</span>}
+              </div>
+            )}
+          </div>
+          <footer className="call-controls">
+            {call.status === "incoming" ? (
+              <>
+                <button
+                  className="call-control-button call-decline"
+                  type="button"
+                  aria-label="Decline call"
+                  title="Decline"
+                  onClick={rejectCall}
+                >
+                  <Icon name="phone" />
+                </button>
+                <button
+                  className="call-control-button call-accept"
+                  type="button"
+                  aria-label="Accept video call"
+                  title="Accept"
+                  onClick={acceptCall}
+                >
+                  <Icon name="video" />
+                </button>
+              </>
+            ) : (
+              <>
+                <button
+                  className={`call-control-button${call.muted ? " is-off" : ""}`}
+                  type="button"
+                  aria-label={call.muted ? "Unmute microphone" : "Mute microphone"}
+                  title={call.muted ? "Unmute microphone" : "Mute microphone"}
+                  onClick={toggleCallAudio}
+                >
+                  <Icon name={call.muted ? "micOff" : "microphone"} />
+                </button>
+                <button
+                  className={`call-control-button${call.cameraOff ? " is-off" : ""}`}
+                  type="button"
+                  aria-label={call.cameraOff ? "Turn camera on" : "Turn camera off"}
+                  title={call.cameraOff ? "Turn camera on" : "Turn camera off"}
+                  onClick={toggleCallVideo}
+                >
+                  <Icon name={call.cameraOff ? "cameraOff" : "video"} />
+                </button>
+                <button
+                  className="call-control-button call-decline"
+                  type="button"
+                  aria-label="End call"
+                  title="End call"
+                  onClick={endCall}
+                >
+                  <Icon name="phone" />
+                </button>
+              </>
+            )}
+          </footer>
+        </section>
       )}
     </>
   );
