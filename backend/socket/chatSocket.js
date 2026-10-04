@@ -13,6 +13,26 @@ const reactionEmojis = new Set(["❤️", "😂", "😮", "😢", "👍", "🔥"
 const attachChatSockets = (io) => {
   const onlineUsers = new Map();
   const activeCalls = new Map();
+  const getActiveCallSummary = (activeCall) => {
+    const activeCaller =
+      activeCall.participants.get(activeCall.callerId) ||
+      activeCall.participants.values().next().value;
+    return {
+      conversationId: activeCall.conversationId,
+      callId: activeCall.callId,
+      conversationName: activeCall.conversationName,
+      caller: activeCaller,
+      participantCount: activeCall.participants.size,
+      isGroup: activeCall.isGroup,
+    };
+  };
+  const broadcastCallAvailability = (activeCall) => {
+    if (!activeCall.isGroup) return;
+    const summary = getActiveCallSummary(activeCall);
+    activeCall.memberIds.forEach((memberId) => {
+      io.to(`user:${memberId}`).emit("call:available", summary);
+    });
+  };
   const persistCallMessage = async (
     conversationId,
     activeCall,
@@ -113,7 +133,14 @@ const attachChatSockets = (io) => {
         }
 
         socket.join(conversationRoom(conversationId));
-        return acknowledge?.({ ok: true, conversationId });
+        const activeCall = activeCalls.get(conversationId);
+        return acknowledge?.({
+          ok: true,
+          conversationId,
+          activeCall: activeCall?.isGroup
+            ? getActiveCallSummary(activeCall)
+            : null,
+        });
       } catch {
         return acknowledge?.({
           ok: false,
@@ -159,6 +186,7 @@ const attachChatSockets = (io) => {
           callId,
           conversationId,
           conversationName: conversation.name,
+          isGroup: conversation.type === "group",
           callerId: user.id,
           memberIds: new Set(memberIds),
           participants: new Map([
@@ -189,6 +217,7 @@ const attachChatSockets = (io) => {
             isGroup: conversation.type === "group",
           });
         });
+        broadcastCallAvailability(activeCall);
         return acknowledge?.({ ok: true, invitedCount: inviteeIds.length });
       } catch {
         return acknowledge?.({ ok: false, message: "Could not start call" });
@@ -232,6 +261,7 @@ const attachChatSockets = (io) => {
           },
         });
       });
+      broadcastCallAvailability(activeCall);
       return acknowledge?.({ ok: true, participants: existingParticipants });
     });
 
@@ -349,18 +379,18 @@ const attachChatSockets = (io) => {
       return acknowledge?.({ ok: true });
     });
 
-    socket.on("call:leave", (payload = {}, acknowledge) => {
+    const leaveActiveCall = async (payload = {}, acknowledge) => {
       const { conversationId, callId } = payload;
       const activeCall = activeCalls.get(conversationId);
       if (
         !activeCall ||
         activeCall.callId !== callId ||
-        !activeCall.participants.has(user.id) ||
-        activeCall.callerId === user.id
+        !activeCall.participants.has(user.id)
       ) {
         return acknowledge?.({ ok: false, message: "Call is no longer active" });
       }
       activeCall.participants.delete(user.id);
+      activeCall.pendingIds.delete(user.id);
       activeCall.participants.forEach((participant) => {
         io.to(`user:${participant.id}`).emit("call:participant-left", {
           conversationId,
@@ -368,19 +398,11 @@ const attachChatSockets = (io) => {
           participantId: user.id,
         });
       });
-      return acknowledge?.({ ok: true });
-    });
-
-    socket.on("call:end", async (payload = {}, acknowledge) => {
-      const { conversationId, callId } = payload;
-      const activeCall = activeCalls.get(conversationId);
-      if (
-        !activeCall ||
-        activeCall.callId !== callId ||
-        activeCall.callerId !== user.id
-      ) {
-        return acknowledge?.({ ok: false, message: "Call is no longer active" });
+      if (activeCall.participants.size) {
+        broadcastCallAvailability(activeCall);
+        return acknowledge?.({ ok: true });
       }
+
       activeCalls.delete(conversationId);
       const status = activeCall.acceptedAt ? "completed" : "cancelled";
       try {
@@ -388,13 +410,14 @@ const attachChatSockets = (io) => {
       } catch (error) {
         console.error("Could not save call history:", error.message);
       }
-      [...activeCall.memberIds].forEach((memberId) => {
-        if (memberId !== user.id) {
-          io.to(`user:${memberId}`).emit("call:ended", { conversationId, callId });
-        }
+      activeCall.memberIds.forEach((memberId) => {
+        io.to(`user:${memberId}`).emit("call:ended", { conversationId, callId });
       });
       return acknowledge?.({ ok: true });
-    });
+    };
+
+    socket.on("call:leave", leaveActiveCall);
+    socket.on("call:end", leaveActiveCall);
 
     socket.on("conversation:read", async (payload = {}, acknowledge) => {
       const conversationId = payload.conversationId;
@@ -688,35 +711,12 @@ const attachChatSockets = (io) => {
             participant: { id: user.id, username: user.username },
           });
         }
-        if (!activeCall.participants.has(user.id)) {
-          return;
-        }
-        activeCall.participants.delete(user.id);
-        if (user.id === activeCall.callerId) {
-          activeCalls.delete(conversationId);
-          const status = activeCall.acceptedAt ? "completed" : "missed";
-          persistCallMessage(conversationId, activeCall, user.id, status).catch(
-            (error) => {
-              console.error("Could not save call history:", error.message);
-            },
-          );
-          activeCall.memberIds.forEach((memberId) => {
-            if (memberId !== user.id) {
-              io.to(`user:${memberId}`).emit("call:ended", {
-                conversationId,
-                callId: activeCall.callId,
-              });
-            }
-          });
-          return;
-        }
-        activeCall.participants.forEach((participant) => {
-          io.to(`user:${participant.id}`).emit("call:participant-left", {
-            conversationId,
-            callId: activeCall.callId,
-            participantId: user.id,
-          });
-        });
+        if (!activeCall.participants.has(user.id)) return;
+        leaveActiveCall({ conversationId, callId: activeCall.callId }).catch(
+          (error) => {
+            console.error("Could not update disconnected call participant:", error.message);
+          },
+        );
       });
       const lastSeenAt = new Date();
       User.findByIdAndUpdate(user.id, { lastSeenAt }).catch((error) => {
