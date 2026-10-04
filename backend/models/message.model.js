@@ -14,8 +14,19 @@ const messageSchema = new mongoose.Schema(
     },
     kind: {
       type: String,
-      enum: ["user", "system"],
+      enum: ["user", "system", "call"],
       default: "user",
+    },
+    callEvent: {
+      status: {
+        type: String,
+        enum: ["completed", "missed", "declined", "cancelled"],
+      },
+      durationSeconds: {
+        type: Number,
+        min: 0,
+        default: 0,
+      },
     },
     systemEvent: {
       action: {
