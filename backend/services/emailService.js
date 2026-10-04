@@ -169,12 +169,21 @@ const scheduleIncomingMessageEmail = ({
 };
 
 const isPasswordResetEmailConfigured = () => {
+  if (process.env.RESEND_API_KEY) {
+    return Boolean(process.env.EMAIL_FROM);
+  }
+
+  const { username, password } = getEmailConfig();
+  return Boolean(process.env.SMTP_HOST && username && password);
+};
+
+const isSmtpPasswordEmailConfigured = () => {
   const { username, password } = getEmailConfig();
   return Boolean(process.env.SMTP_HOST && username && password);
 };
 
 const buildPasswordEmailTransport = () => {
-  if (!isPasswordResetEmailConfigured()) return null;
+  if (!isSmtpPasswordEmailConfigured()) return null;
   const { username, password } = getEmailConfig();
   return nodemailer.createTransport({
     host: process.env.SMTP_HOST,
@@ -196,15 +205,45 @@ const escapeHtml = (value) =>
     return entities[character];
   });
 
-const sendPasswordResetEmail = async ({ email, username, resetUrl }) => {
+const deliverPasswordEmail = async (message) => {
+  if (process.env.RESEND_API_KEY) {
+    if (!process.env.EMAIL_FROM) {
+      throw new Error("EMAIL_FROM is required when using Resend");
+    }
+
+    const response = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        ...message,
+        from: process.env.EMAIL_FROM,
+        to: Array.isArray(message.to) ? message.to : [message.to],
+      }),
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(
+        result.message || `Email provider request failed (${response.status})`,
+      );
+    }
+    return result;
+  }
+
   const transporter = buildPasswordEmailTransport();
   if (!transporter) throw new Error("Password reset email is not configured");
+  return transporter.sendMail(message);
+};
+
+const sendPasswordResetEmail = async ({ email, username, resetUrl }) => {
   const { username: emailUser } = getEmailConfig();
   const displayName = username || "there";
   const safeName = escapeHtml(displayName);
   const safeResetUrl = escapeHtml(resetUrl);
 
-  await transporter.sendMail({
+  await deliverPasswordEmail({
     from: process.env.EMAIL_FROM || emailUser,
     to: email,
     subject: "Reset your Nook password",
@@ -266,15 +305,13 @@ const sendPasswordResetEmail = async ({ email, username, resetUrl }) => {
 };
 
 const sendPasswordChangedEmail = async ({ email, username }) => {
-  const transporter = buildPasswordEmailTransport();
-  if (!transporter) throw new Error("Password reset email is not configured");
   const { username: emailUser } = getEmailConfig();
   const displayName = username || "there";
   const safeName = escapeHtml(displayName);
   const changedAt = new Date().toUTCString();
   const safeChangedAt = escapeHtml(changedAt);
 
-  await transporter.sendMail({
+  await deliverPasswordEmail({
     from: process.env.EMAIL_FROM || emailUser,
     to: email,
     subject: "Your Nook password was changed",
