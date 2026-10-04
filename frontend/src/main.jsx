@@ -2001,16 +2001,22 @@ function App() {
     currentConversation?.type === "direct" &&
     Boolean(otherParticipants[0] && online.has(otherParticipants[0]._id));
   const groupCallMemberCount = call?.members.length || 1;
+  const portraitCall = callViewport.height > callViewport.width * 1.15;
+  const twoPersonGroupPip =
+    call?.isGroup &&
+    call.members.length === 2 &&
+    (callViewport.width <= 720 || portraitCall);
   const groupCallColumns = Math.min(
-    callViewport.width <= 720 ? 2 : 4,
+    callViewport.width <= 720 || portraitCall ? 2 : 4,
     Math.ceil(Math.sqrt(groupCallMemberCount)),
   );
   const groupCallRows = Math.ceil(groupCallMemberCount / groupCallColumns);
+  const groupCallTileRatio = portraitCall ? 1 : 16 / 9;
   const groupCallGridWidth = Math.min(
     callViewport.width - 32,
     1440,
     ((callViewport.height - 166 - 8 * (groupCallRows - 1)) / groupCallRows) *
-      (16 / 9) *
+      groupCallTileRatio *
       groupCallColumns +
       8 * (groupCallColumns - 1),
   );
@@ -2891,17 +2897,21 @@ function App() {
               </div>
             ) : (
               <div
-                className={`call-participant-grid${call.isGroup ? " is-group-call" : ""}`}
+                className={`call-participant-grid${call.isGroup ? " is-group-call" : ""}${twoPersonGroupPip ? " is-two-person-call" : ""}`}
                 style={
                   call.isGroup
                     ? {
                         "--call-grid-tracks": groupCallColumns * 2,
-                        width: `${groupCallGridWidth}px`,
+                        "--call-grid-rows": groupCallRows,
+                        width:
+                          callViewport.width <= 720 || twoPersonGroupPip
+                            ? "100%"
+                            : `${groupCallGridWidth}px`,
                       }
                     : undefined
                 }
               >
-                {call.isGroup && (
+                {call.isGroup && !twoPersonGroupPip && (
                   <div
                     className="call-participant-tile"
                     key={user.id}
@@ -2974,7 +2984,7 @@ function App() {
                   })}
               </div>
             )}
-            {call.localStream && !call.isGroup && (
+            {call.localStream && (!call.isGroup || twoPersonGroupPip) && (
               <div className="call-local-tile">
                 <video
                   className="call-local-video"

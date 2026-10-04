@@ -2095,17 +2095,71 @@ textarea:focus {
     gap: 14px;
   }
   .call-participant-grid {
-    grid-template-columns: minmax(0, 1fr);
-    grid-auto-rows: minmax(180px, 1fr);
-    gap: 8px;
-    padding: 72px 10px 102px;
+    position: absolute;
+    inset: 0;
+    display: block;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    padding: 0;
+  }
+  .call-participant-grid:not(.is-group-call) .call-participant-tile {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    aspect-ratio: auto;
+    border: 0;
+    border-radius: 0;
+  }
+  .call-participant-grid:not(.is-group-call) .call-participant-video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
   }
   .call-participant-grid.is-group-call {
+    display: grid;
+    position: absolute;
+    inset: 0;
     width: 100%;
+    height: 100%;
+    max-height: none;
     grid-template-columns: repeat(var(--call-grid-tracks, 4), minmax(0, 1fr));
-    grid-auto-rows: auto;
-    align-content: center;
-    padding: 8px;
+    grid-template-rows: repeat(var(--call-grid-rows, 2), minmax(0, 1fr));
+    grid-auto-rows: minmax(0, 1fr);
+    align-content: stretch;
+    gap: 0;
+    overflow: hidden;
+    padding: 0;
+  }
+  .call-participant-grid.is-group-call .call-participant-tile {
+    min-height: 0;
+    aspect-ratio: auto;
+    border: 0;
+    border-radius: 0;
+  }
+  .call-participant-grid.is-two-person-call {
+    display: block;
+  }
+  .call-participant-grid.is-two-person-call .call-participant-tile {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    grid-column: auto;
+  }
+  .call-participant-grid.is-two-person-call .call-participant-video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+  .call-local-tile {
+    top: 12px;
+    right: 12px;
+    width: clamp(92px, 27vw, 132px);
+    aspect-ratio: 9 / 16;
+    max-height: 38%;
+    border-radius: 14px;
   }
   .call-control-button {
     width: 54px;
