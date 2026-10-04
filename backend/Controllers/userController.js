@@ -1,9 +1,27 @@
 const User = require("../models/user.model");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
+const { createHash, randomBytes } = require("node:crypto");
+const {
+  isPasswordResetEmailConfigured,
+  sendPasswordResetEmail,
+  sendPasswordChangedEmail,
+} = require("../services/emailService");
 
 const createToken = (userId) =>
-  jwt.sign({ sub: userId.toString() }, process.env.JWT_SECRET, { expiresIn: "7d" });
+  jwt.sign({ sub: userId.toString() }, process.env.JWT_SECRET, {
+    expiresIn: "7d",
+  });
+
+const hashResetToken = (token) =>
+  createHash("sha256").update(token).digest("hex");
+
+const getClientBaseUrl = (req) => {
+  const configuredUrl = process.env.CLIENT_URL || process.env.CLIENT_ORIGIN;
+  if (configuredUrl && configuredUrl !== "*") return configuredUrl;
+  const protocol = req.get("x-forwarded-proto")?.split(",")[0] || req.protocol;
+  return `${protocol}://${req.get("host")}`;
+};
 
 const toPublicUser = (user) => ({
   id: user._id,
@@ -16,32 +34,44 @@ const toPublicUser = (user) => ({
 const register = async (req, res, next) => {
   try {
     const body = req.body || {};
-    const username = typeof body.username === "string" ? body.username.trim() : "";
-    const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
+    const username =
+      typeof body.username === "string" ? body.username.trim() : "";
+    const email =
+      typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
     const password = typeof body.password === "string" ? body.password : "";
 
     if (username.length < 3 || username.length > 30) {
-      return res.status(400).json({ message: "Username must be between 3 and 30 characters" });
+      return res
+        .status(400)
+        .json({ message: "Username must be between 3 and 30 characters" });
     }
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       return res.status(400).json({ message: "Enter a valid email address" });
     }
     if (password.length < 8 || password.length > 72) {
-      return res.status(400).json({ message: "Password must be between 8 and 72 characters" });
+      return res
+        .status(400)
+        .json({ message: "Password must be between 8 and 72 characters" });
     }
 
     const existingUser = await User.findOne({ $or: [{ email }, { username }] });
     if (existingUser) {
-      return res.status(409).json({ message: "Email or username is already in use" });
+      return res
+        .status(409)
+        .json({ message: "Email or username is already in use" });
     }
 
     const passwordHash = await bcrypt.hash(password, 12);
     const user = await User.create({ username, email, passwordHash });
 
-    return res.status(201).json({ token: createToken(user._id), user: toPublicUser(user) });
+    return res
+      .status(201)
+      .json({ token: createToken(user._id), user: toPublicUser(user) });
   } catch (error) {
     if (error.code === 11000) {
-      return res.status(409).json({ message: "Email or username is already in use" });
+      return res
+        .status(409)
+        .json({ message: "Email or username is already in use" });
     }
     return next(error);
   }
@@ -50,7 +80,8 @@ const register = async (req, res, next) => {
 const login = async (req, res, next) => {
   try {
     const body = req.body || {};
-    const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
+    const email =
+      typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
     const password = typeof body.password === "string" ? body.password : "";
 
     const user = await User.findOne({ email }).select("+passwordHash");
@@ -59,6 +90,106 @@ const login = async (req, res, next) => {
     }
 
     return res.json({ token: createToken(user._id), user: toPublicUser(user) });
+  } catch (error) {
+    return next(error);
+  }
+};
+
+const requestPasswordReset = async (req, res, next) => {
+  try {
+    const email =
+      typeof req.body?.email === "string"
+        ? req.body.email.trim().toLowerCase()
+        : "";
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return res.status(400).json({ message: "Enter a valid email address" });
+    }
+    if (!isPasswordResetEmailConfigured()) {
+      return res.status(503).json({
+        message: "Password reset email is not configured",
+      });
+    }
+
+    const genericMessage =
+      "If an account with that email exists, a password reset link has been sent.";
+    const user = await User.findOne({ email }).select("username email");
+    if (!user) {
+      return res.status(202).json({ message: genericMessage });
+    }
+
+    const resetToken = randomBytes(32).toString("hex");
+    user.passwordResetTokenHash = hashResetToken(resetToken);
+    user.passwordResetExpires = new Date(Date.now() + 30 * 60 * 1000);
+    await user.save();
+
+    const resetUrl = new URL("/", getClientBaseUrl(req));
+    resetUrl.searchParams.set("resetToken", resetToken);
+    try {
+      await sendPasswordResetEmail({
+        email: user.email,
+        username: user.username,
+        resetUrl: resetUrl.toString(),
+      });
+    } catch (error) {
+      user.passwordResetTokenHash = null;
+      user.passwordResetExpires = null;
+      await user.save();
+      console.error("Could not send password reset email:", error.message);
+    }
+
+    return res.status(202).json({ message: genericMessage });
+  } catch (error) {
+    return next(error);
+  }
+};
+
+const resetPassword = async (req, res, next) => {
+  try {
+    const token = typeof req.body?.token === "string" ? req.body.token : "";
+    const password =
+      typeof req.body?.password === "string" ? req.body.password : "";
+    if (!token) {
+      return res
+        .status(400)
+        .json({ message: "Password reset token is required" });
+    }
+    if (password.length < 8 || password.length > 72) {
+      return res.status(400).json({
+        message: "Password must be between 8 and 72 characters",
+      });
+    }
+
+    const user = await User.findOne({
+      passwordResetTokenHash: hashResetToken(token),
+      passwordResetExpires: { $gt: new Date() },
+    }).select("+passwordResetTokenHash +passwordResetExpires");
+    if (!user) {
+      return res.status(400).json({
+        message: "This password reset link is invalid or has expired",
+      });
+    }
+
+    user.passwordHash = await bcrypt.hash(password, 12);
+    user.passwordResetTokenHash = null;
+    user.passwordResetExpires = null;
+    await user.save();
+
+    let receiptSent = true;
+    try {
+      await sendPasswordChangedEmail({
+        email: user.email,
+        username: user.username,
+      });
+    } catch (error) {
+      receiptSent = false;
+      console.error("Could not send password changed email:", error.message);
+    }
+
+    return res.json({
+      message: receiptSent
+        ? "Password changed. A confirmation email has been sent."
+        : "Password changed, but the confirmation email could not be sent.",
+    });
   } catch (error) {
     return next(error);
   }
@@ -95,7 +226,9 @@ const getMyProfile = async (req, res, next) => {
       return res.status(401).json({ message: "Authentication required" });
     }
 
-    const user = await User.findById(userId).select("username email avatarUrl lastSeenAt");
+    const user = await User.findById(userId).select(
+      "username email avatarUrl lastSeenAt",
+    );
     if (!user) {
       return res.status(404).json({ message: "User not found" });
     }
@@ -140,4 +273,12 @@ const updateMyProfile = async (req, res, next) => {
   }
 };
 
-module.exports = { register, login, searchUsers, getMyProfile, updateMyProfile };
+module.exports = {
+  register,
+  login,
+  requestPasswordReset,
+  resetPassword,
+  searchUsers,
+  getMyProfile,
+  updateMyProfile,
+};
