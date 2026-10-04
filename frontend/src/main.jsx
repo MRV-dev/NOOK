@@ -781,6 +781,7 @@ function App() {
   const [notification, setNotification] = useState(null);
   const [error, setError] = useState("");
   const [call, setCall] = useState(null);
+  const [callChromeVisible, setCallChromeVisible] = useState(true);
   const [callViewport, setCallViewport] = useState(() => ({
     width: window.innerWidth,
     height: window.innerHeight,
@@ -793,7 +794,9 @@ function App() {
   const localStreamRef = useRef(null);
   const queuedIceRef = useRef(new Map());
   const localVideoRef = useRef(null);
+  const desktopLocalVideoRef = useRef(null);
   const peerVideoRefs = useRef(new Map());
+  const callChromeTimeoutRef = useRef(null);
   const mediaFilesRef = useRef([]);
   const messagesRef = useRef(null);
   const messageInputRef = useRef(null);
@@ -1446,6 +1449,9 @@ function App() {
     if (localVideoRef.current) {
       localVideoRef.current.srcObject = call?.localStream || null;
     }
+    if (desktopLocalVideoRef.current) {
+      desktopLocalVideoRef.current.srcObject = call?.localStream || null;
+    }
     call?.peers?.forEach((peer) => {
       const video = peerVideoRefs.current.get(peer.id);
       if (!video) return;
@@ -1461,6 +1467,35 @@ function App() {
     window.addEventListener("resize", updateViewport);
     return () => window.removeEventListener("resize", updateViewport);
   }, [call?.isGroup]);
+
+  useEffect(() => {
+    clearTimeout(callChromeTimeoutRef.current);
+    if (!call || call.status === "incoming") {
+      setCallChromeVisible(true);
+      return undefined;
+    }
+
+    const revealCallChrome = () => {
+      setCallChromeVisible(true);
+      clearTimeout(callChromeTimeoutRef.current);
+      callChromeTimeoutRef.current = setTimeout(
+        () => setCallChromeVisible(false),
+        3000,
+      );
+    };
+    revealCallChrome();
+    document.addEventListener("pointermove", revealCallChrome, {
+      passive: true,
+    });
+    document.addEventListener("pointerdown", revealCallChrome);
+    document.addEventListener("keydown", revealCallChrome);
+    return () => {
+      clearTimeout(callChromeTimeoutRef.current);
+      document.removeEventListener("pointermove", revealCallChrome);
+      document.removeEventListener("pointerdown", revealCallChrome);
+      document.removeEventListener("keydown", revealCallChrome);
+    };
+  }, [call?.callId, call?.status]);
 
   useEffect(() => {
     const query = search.trim();
@@ -2002,6 +2037,8 @@ function App() {
     Boolean(otherParticipants[0] && online.has(otherParticipants[0]._id));
   const groupCallMemberCount = call?.members.length || 1;
   const portraitCall = callViewport.height > callViewport.width * 1.15;
+  const desktopDirectCall =
+    call && !call.isGroup && callViewport.width > 720;
   const twoPersonGroupPip =
     call?.isGroup &&
     call.members.length === 2 &&
@@ -2853,14 +2890,16 @@ function App() {
           aria-modal="true"
           aria-label="Video call"
         >
-          <header className="call-topbar">
+          <header
+            className={`call-topbar${callChromeVisible ? "" : " call-chrome-hidden"}`}
+          >
             <div className="call-topbar-copy">
               <strong>{call.peerName}</strong>
               <span>
                 {call.status === "incoming"
                   ? `${call.caller?.username || "Someone"} is calling`
                   : call.status === "calling"
-                    ? `Inviting ${call.invitedCount} ${call.invitedCount === 1 ? "person" : "people"}`
+                    ? "Calling..."
                     : call.status === "connected"
                       ? `${call.members.length} in call`
                       : "Connecting..."}
@@ -2897,7 +2936,7 @@ function App() {
               </div>
             ) : (
               <div
-                className={`call-participant-grid${call.isGroup ? " is-group-call" : ""}${twoPersonGroupPip ? " is-two-person-call" : ""}`}
+                className={`call-participant-grid${call.isGroup ? " is-group-call" : ""}${twoPersonGroupPip ? " is-two-person-call" : ""}${desktopDirectCall ? " is-direct-desktop" : ""}`}
                 style={
                   call.isGroup
                     ? {
@@ -2908,19 +2947,21 @@ function App() {
                             ? "100%"
                             : `${groupCallGridWidth}px`,
                       }
+                    : desktopDirectCall
+                      ? { width: "min(100%, 1440px)" }
                     : undefined
                 }
               >
-                {call.isGroup && !twoPersonGroupPip && (
+                {((call.isGroup && !twoPersonGroupPip) || desktopDirectCall) && (
                   <div
                     className="call-participant-tile"
                     key={user.id}
-                    style={groupCallTileStyle(0)}
+                    style={call.isGroup ? groupCallTileStyle(0) : undefined}
                   >
                     {call.localStream && !call.cameraOff ? (
                       <video
                         className="call-participant-video call-self-video"
-                        ref={localVideoRef}
+                        ref={desktopDirectCall ? desktopLocalVideoRef : localVideoRef}
                         autoPlay
                         muted
                         playsInline
@@ -2984,7 +3025,8 @@ function App() {
                   })}
               </div>
             )}
-            {call.localStream && (!call.isGroup || twoPersonGroupPip) && (
+            {call.localStream &&
+              ((!call.isGroup && !desktopDirectCall) || twoPersonGroupPip) && (
               <div className="call-local-tile">
                 <video
                   className="call-local-video"
@@ -2997,7 +3039,9 @@ function App() {
               </div>
             )}
           </div>
-          <footer className="call-controls">
+          <footer
+            className={`call-controls${callChromeVisible ? "" : " call-chrome-hidden"}`}
+          >
             {call.status === "incoming" ? (
               <>
                 <button
