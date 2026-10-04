@@ -10,7 +10,9 @@ const attachChatSockets = require("./socket/chatSocket");
 
 dotenv.config({ path: path.join(__dirname, ".env") });
 
-const dnsServers = process.env.DNS_SERVERS?.split(",").map((server) => server.trim()).filter(Boolean);
+const dnsServers = process.env.DNS_SERVERS?.split(",")
+  .map((server) => server.trim())
+  .filter(Boolean);
 if (dnsServers?.length) {
   dns.setServers(dnsServers);
 }
@@ -64,8 +66,14 @@ app.use((error, req, res, next) => {
 
 const PORT = process.env.PORT || 3000;
 
-if (!process.env.JWT_SECRET || process.env.JWT_SECRET.length < 32 || process.env.JWT_SECRET.startsWith("replace_")) {
-  console.error("Set JWT_SECRET to a private random value of at least 32 characters in backend/.env");
+if (
+  !process.env.JWT_SECRET ||
+  process.env.JWT_SECRET.length < 32 ||
+  process.env.JWT_SECRET.startsWith("replace_")
+) {
+  console.error(
+    "Set JWT_SECRET to a private random value of at least 32 characters in backend/.env",
+  );
   process.exit(1);
 }
 
