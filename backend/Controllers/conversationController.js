@@ -46,34 +46,58 @@ const createConversation = async (req, res, next) => {
     const body = req.body || {};
     const type = body.type || "direct";
     if (!["direct", "group"].includes(type)) {
-      return res.status(400).json({ message: "Conversation type must be direct or group" });
+      return res
+        .status(400)
+        .json({ message: "Conversation type must be direct or group" });
     }
 
     const requestedParticipants = body.participants;
     if (!Array.isArray(requestedParticipants)) {
-      return res.status(400).json({ message: "Participants must be an array of user IDs" });
+      return res
+        .status(400)
+        .json({ message: "Participants must be an array of user IDs" });
     }
 
-    const participantIds = [...new Set([...requestedParticipants, userId.toString()])];
+    const participantIds = [
+      ...new Set([...requestedParticipants, userId.toString()]),
+    ];
     if (
-      participantIds.some((participantId) => typeof participantId !== "string" || !mongoose.isValidObjectId(participantId)) ||
+      participantIds.some(
+        (participantId) =>
+          typeof participantId !== "string" ||
+          !mongoose.isValidObjectId(participantId),
+      ) ||
       participantIds.length < 2
     ) {
-      return res.status(400).json({ message: "A conversation needs at least two valid participants" });
+      return res
+        .status(400)
+        .json({
+          message: "A conversation needs at least two valid participants",
+        });
     }
 
-    const existingParticipantCount = await User.countDocuments({ _id: { $in: participantIds } });
+    const existingParticipantCount = await User.countDocuments({
+      _id: { $in: participantIds },
+    });
     if (existingParticipantCount !== participantIds.length) {
-      return res.status(400).json({ message: "One or more participants do not exist" });
+      return res
+        .status(400)
+        .json({ message: "One or more participants do not exist" });
     }
 
     if (type === "group" && !body.name?.trim()) {
-      return res.status(400).json({ message: "Group conversations need a name" });
+      return res
+        .status(400)
+        .json({ message: "Group conversations need a name" });
     }
 
     if (type === "direct") {
       if (participantIds.length !== 2) {
-        return res.status(400).json({ message: "A direct conversation must have two participants" });
+        return res
+          .status(400)
+          .json({
+            message: "A direct conversation must have two participants",
+          });
       }
 
       const existingConversation = await Conversation.findOne({
@@ -86,8 +110,9 @@ const createConversation = async (req, res, next) => {
           { _id: existingConversation._id },
           { $pull: { hiddenFor: userId } },
         );
-        const visibleConversation = await Conversation.findById(existingConversation._id)
-          .populate("participants", "username avatarUrl");
+        const visibleConversation = await Conversation.findById(
+          existingConversation._id,
+        ).populate("participants", "username avatarUrl");
         return res.json(visibleConversation);
       }
     }
@@ -98,7 +123,10 @@ const createConversation = async (req, res, next) => {
       name: type === "group" ? body.name.trim() : "",
     });
 
-    const populatedConversation = await conversation.populate("participants", "username avatarUrl");
+    const populatedConversation = await conversation.populate(
+      "participants",
+      "username avatarUrl",
+    );
     return res.status(201).json(populatedConversation);
   } catch (error) {
     return next(error);
@@ -116,18 +144,26 @@ const addParticipants = async (req, res, next) => {
     }
 
     const requestedParticipants = req.body?.participants;
-    if (!Array.isArray(requestedParticipants) || requestedParticipants.length === 0) {
-      return res.status(400).json({ message: "Select at least one person to add" });
+    if (
+      !Array.isArray(requestedParticipants) ||
+      requestedParticipants.length === 0
+    ) {
+      return res
+        .status(400)
+        .json({ message: "Select at least one person to add" });
     }
 
     const participantIds = [...new Set(requestedParticipants)];
     if (
       participantIds.some(
         (participantId) =>
-          typeof participantId !== "string" || !mongoose.isValidObjectId(participantId),
+          typeof participantId !== "string" ||
+          !mongoose.isValidObjectId(participantId),
       )
     ) {
-      return res.status(400).json({ message: "Participants must be valid user IDs" });
+      return res
+        .status(400)
+        .json({ message: "Participants must be valid user IDs" });
     }
 
     const conversation = await Conversation.findOne({
@@ -139,15 +175,25 @@ const addParticipants = async (req, res, next) => {
       return res.status(404).json({ message: "Group conversation not found" });
     }
 
-    const existingIds = new Set(conversation.participants.map((id) => id.toString()));
-    const newParticipantIds = participantIds.filter((id) => !existingIds.has(id));
+    const existingIds = new Set(
+      conversation.participants.map((id) => id.toString()),
+    );
+    const newParticipantIds = participantIds.filter(
+      (id) => !existingIds.has(id),
+    );
     if (!newParticipantIds.length) {
-      return res.status(400).json({ message: "Those people are already in this group" });
+      return res
+        .status(400)
+        .json({ message: "Those people are already in this group" });
     }
 
-    const existingUserCount = await User.countDocuments({ _id: { $in: newParticipantIds } });
+    const existingUserCount = await User.countDocuments({
+      _id: { $in: newParticipantIds },
+    });
     if (existingUserCount !== newParticipantIds.length) {
-      return res.status(400).json({ message: "One or more people do not exist" });
+      return res
+        .status(400)
+        .json({ message: "One or more people do not exist" });
     }
 
     await Conversation.updateOne(
@@ -192,10 +238,14 @@ const removeGroupParticipant = async (req, res, next) => {
       !mongoose.isValidObjectId(conversationId) ||
       !mongoose.isValidObjectId(participantId)
     ) {
-      return res.status(400).json({ message: "Invalid group or participant ID" });
+      return res
+        .status(400)
+        .json({ message: "Invalid group or participant ID" });
     }
     if (userId.toString() === participantId) {
-      return res.status(400).json({ message: "Use leave group to remove yourself" });
+      return res
+        .status(400)
+        .json({ message: "Use leave group to remove yourself" });
     }
 
     const conversation = await Conversation.findOneAndUpdate(
@@ -219,8 +269,12 @@ const removeGroupParticipant = async (req, res, next) => {
       action: "removed",
       memberIds: [participantId],
     });
-    io?.in(`user:${participantId}`).socketsLeave(`conversation:${conversationId}`);
-    io?.to(`user:${participantId}`).emit("conversation:hidden", { conversationId });
+    io?.in(`user:${participantId}`).socketsLeave(
+      `conversation:${conversationId}`,
+    );
+    io?.to(`user:${participantId}`).emit("conversation:hidden", {
+      conversationId,
+    });
 
     const updatedConversation = await Conversation.findById(conversationId)
       .populate("participants", "username avatarUrl")
@@ -248,7 +302,9 @@ const updateGroupName = async (req, res, next) => {
 
     const name = typeof req.body?.name === "string" ? req.body.name.trim() : "";
     if (!name || name.length > 60) {
-      return res.status(400).json({ message: "Group name must be between 1 and 60 characters" });
+      return res
+        .status(400)
+        .json({ message: "Group name must be between 1 and 60 characters" });
     }
 
     const conversation = await Conversation.findOne({
@@ -334,7 +390,9 @@ const leaveGroupConversation = async (req, res, next) => {
     io?.in(userRoom).socketsLeave(`conversation:${conversationId}`);
     io?.to(userRoom).emit("conversation:hidden", { conversationId });
     conversation.participants.forEach((participantId) => {
-      io?.to(`user:${participantId}`).emit("conversation:updated", { conversationId });
+      io?.to(`user:${participantId}`).emit("conversation:updated", {
+        conversationId,
+      });
     });
 
     return res.json({ ok: true });
@@ -353,7 +411,13 @@ module.exports = {
   leaveGroupConversation,
 };
 
-const publishGroupActivity = async ({ io, conversationId, actorId, action, memberIds }) => {
+const publishGroupActivity = async ({
+  io,
+  conversationId,
+  actorId,
+  action,
+  memberIds,
+}) => {
   const event = await Message.create({
     conversation: conversationId,
     sender: actorId,

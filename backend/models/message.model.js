@@ -80,7 +80,7 @@ const messageSchema = new mongoose.Schema(
       },
     ],
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
 messageSchema.index({ conversation: 1, createdAt: -1 });

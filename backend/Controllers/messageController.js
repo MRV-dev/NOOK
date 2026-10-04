@@ -61,7 +61,9 @@ const getConversationMessages = async (req, res, next) => {
     }
 
     const requestedLimit = Number.parseInt(req.query.limit, 10);
-    const limit = Number.isNaN(requestedLimit) ? 50 : Math.min(Math.max(requestedLimit, 1), 100);
+    const limit = Number.isNaN(requestedLimit)
+      ? 50
+      : Math.min(Math.max(requestedLimit, 1), 100);
     const filter = { conversation: conversationId };
 
     if (req.query.before) {
@@ -97,7 +99,9 @@ const downloadReceivedImage = async (req, res, next) => {
       mediaIndex < 0 ||
       mediaIndex > 7
     ) {
-      return res.status(400).json({ message: "Invalid image download request" });
+      return res
+        .status(400)
+        .json({ message: "Invalid image download request" });
     }
 
     const isMember = await Conversation.exists({
@@ -151,21 +155,30 @@ const downloadReceivedImage = async (req, res, next) => {
         !allowedExtensions.has(requestedExtension) ||
         !contentType.startsWith(`${attachment.type}/`)
       ) {
-        return res.status(400).json({ message: "Media format is not supported" });
+        return res
+          .status(400)
+          .json({ message: "Media format is not supported" });
       }
 
       const legacyUploadDirectory = path.resolve(__dirname, "..", "uploads");
       try {
-        imageBuffer = await fs.readFile(path.join(legacyUploadDirectory, legacyFilename));
+        imageBuffer = await fs.readFile(
+          path.join(legacyUploadDirectory, legacyFilename),
+        );
       } catch (error) {
         if (error.code === "ENOENT") {
-          return res.status(404).json({ message: "Image file is no longer available" });
+          return res
+            .status(404)
+            .json({ message: "Image file is no longer available" });
         }
         throw error;
       }
     } else {
       const imageUrl = new URL(attachment.url);
-      if (imageUrl.protocol !== "https:" || imageUrl.hostname !== "res.cloudinary.com") {
+      if (
+        imageUrl.protocol !== "https:" ||
+        imageUrl.hostname !== "res.cloudinary.com"
+      ) {
         return res.status(400).json({ message: "Image URL is not supported" });
       }
 
@@ -173,12 +186,16 @@ const downloadReceivedImage = async (req, res, next) => {
         signal: AbortSignal.timeout(30000),
       });
       if (!imageResponse.ok) {
-        return res.status(502).json({ message: "Could not retrieve media from Cloudinary" });
+        return res
+          .status(502)
+          .json({ message: "Could not retrieve media from Cloudinary" });
       }
 
       contentType = imageResponse.headers.get("content-type") || "";
       if (!contentType.startsWith(`${attachment.type}/`)) {
-        return res.status(502).json({ message: "Cloudinary returned invalid media" });
+        return res
+          .status(502)
+          .json({ message: "Cloudinary returned invalid media" });
       }
 
       requestedExtension = path.extname(imageUrl.pathname).toLowerCase();
@@ -209,7 +226,8 @@ const createMessage = async (req, res, next) => {
   try {
     const userId = req.user?._id;
     const { conversationId } = req.params;
-    const content = typeof req.body?.content === "string" ? req.body.content.trim() : "";
+    const content =
+      typeof req.body?.content === "string" ? req.body.content.trim() : "";
 
     if (!userId) {
       return res.status(401).json({ message: "Authentication required" });
@@ -218,7 +236,11 @@ const createMessage = async (req, res, next) => {
       return res.status(400).json({ message: "Invalid conversation ID" });
     }
     if (!content || content.length > 10000) {
-      return res.status(400).json({ message: "Message content must be between 1 and 10000 characters" });
+      return res
+        .status(400)
+        .json({
+          message: "Message content must be between 1 and 10000 characters",
+        });
     }
 
     const message = await createMessageForUser({
@@ -230,7 +252,10 @@ const createMessage = async (req, res, next) => {
       return res.status(404).json({ message: "Conversation not found" });
     }
 
-    req.app.get("io")?.to(`conversation:${conversationId}`).emit("message:new", message);
+    req.app
+      .get("io")
+      ?.to(`conversation:${conversationId}`)
+      .emit("message:new", message);
     return res.status(201).json(message);
   } catch (error) {
     return next(error);
@@ -240,17 +265,24 @@ const createMessage = async (req, res, next) => {
 const createMediaMessage = async (req, res, next) => {
   const userId = req.user?._id;
   const { conversationId } = req.params;
-  const content = typeof req.body?.content === "string" ? req.body.content.trim() : "";
+  const content =
+    typeof req.body?.content === "string" ? req.body.content.trim() : "";
   const files = req.files || [];
 
   if (!files.length) {
-    return res.status(400).json({ message: "Choose at least one supported image or video" });
+    return res
+      .status(400)
+      .json({ message: "Choose at least one supported image or video" });
   }
   if (!isCloudinaryConfigured()) {
-    return res.status(503).json({ message: "Cloudinary media storage is not configured" });
+    return res
+      .status(503)
+      .json({ message: "Cloudinary media storage is not configured" });
   }
   if (content.length > 10000) {
-    return res.status(400).json({ message: "Caption must be 10000 characters or fewer" });
+    return res
+      .status(400)
+      .json({ message: "Caption must be 10000 characters or fewer" });
   }
 
   const uploadedAssets = [];
@@ -288,11 +320,11 @@ const createMediaMessage = async (req, res, next) => {
     }
 
     const io = req.app.get("io");
-    const preview = content || (
-      files.length === 1
+    const preview =
+      content ||
+      (files.length === 1
         ? `Sent ${uploadedAssets[0].type === "video" ? "a video" : "an image"}`
-        : `Sent ${files.length} attachments`
-    );
+        : `Sent ${files.length} attachments`);
     io?.to(`conversation:${conversationId}`).emit("message:new", message);
 
     const recipientIds = conversation.participants
@@ -312,7 +344,8 @@ const createMediaMessage = async (req, res, next) => {
         senderName: message.sender?.username || req.user.username,
         recipientIds,
         content: preview,
-        conversationName: conversation.type === "group" ? conversation.name : "",
+        conversationName:
+          conversation.type === "group" ? conversation.name : "",
       });
     }
 
