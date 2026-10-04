@@ -1749,15 +1749,19 @@ textarea:focus {
   animation: arrive 0.2s ease-out both;
 }
 .call-topbar {
-  position: relative;
+  position: absolute;
   z-index: 2;
+  top: 0;
+  right: 0;
+  left: 0;
   display: flex;
   min-height: 58px;
   align-items: center;
   justify-content: space-between;
   gap: 16px;
   padding: max(8px, env(safe-area-inset-top)) 20px 8px;
-  background: linear-gradient(180deg, rgba(0, 0, 0, 0.65), transparent);
+  background: transparent;
+  transition: opacity 0.2s ease, transform 0.2s ease, visibility 0.2s;
 }
 .call-topbar-copy {
   display: grid;
@@ -1797,6 +1801,17 @@ textarea:focus {
   place-items: center;
   overflow: hidden;
   background: #303030;
+}
+.call-chrome-hidden {
+  visibility: hidden;
+  opacity: 0;
+  pointer-events: none;
+}
+.call-topbar.call-chrome-hidden {
+  transform: translateY(-8px);
+}
+.call-controls.call-chrome-hidden {
+  transform: translateY(8px);
 }
 .call-incoming-stage {
   display: grid;
@@ -1848,6 +1863,23 @@ textarea:focus {
   margin: auto;
   overflow: visible;
   padding: 0;
+}
+.call-participant-grid.is-direct-desktop {
+  display: grid;
+  width: min(100%, 1440px);
+  height: 100%;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-rows: minmax(0, 1fr);
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  overflow: hidden;
+  padding: 0 24px;
+}
+.call-participant-grid.is-direct-desktop .call-participant-tile {
+  grid-column: auto;
+  width: 100%;
+  aspect-ratio: 16 / 9;
 }
 .call-participant-tile {
   position: relative;
@@ -1970,15 +2002,19 @@ textarea:focus {
   font-size: 11px;
 }
 .call-controls {
-  position: relative;
+  position: absolute;
   z-index: 2;
+  right: 0;
+  bottom: 0;
+  left: 0;
   display: flex;
   min-height: 84px;
   align-items: center;
   justify-content: center;
   gap: 14px;
   padding: 8px 16px max(12px, env(safe-area-inset-bottom));
-  background: linear-gradient(0deg, rgba(0, 0, 0, 0.7), transparent);
+  background: transparent;
+  transition: opacity 0.2s ease, transform 0.2s ease, visibility 0.2s;
 }
 .call-control-button {
   width: 56px;
