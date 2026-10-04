@@ -14,6 +14,7 @@ const supportedMediaTypes = new Set([
 ]);
 const maxMediaFiles = 8;
 const maxMediaFileSize = 25 * 1024 * 1024;
+const reactionOptions = ["❤️", "😂", "😮", "😢", "👍", "🔥"];
 
 const initials = (name = "?") =>
   name
@@ -28,6 +29,29 @@ const formatNames = (people) => {
   if (names.length < 2) return names[0] || "a member";
   if (names.length === 2) return `${names[0]} and ${names[1]}`;
   return `${names.slice(0, -1).join(", ")}, and ${names.at(-1)}`;
+};
+
+const summarizeReactions = (reactions = [], currentUserId) => {
+  const groups = new Map();
+  reactions.forEach((reaction) => {
+    const reactionUserId =
+      typeof reaction.user === "object"
+        ? reaction.user?._id || reaction.user?.id
+        : reaction.user;
+    const group = groups.get(reaction.emoji) || {
+      emoji: reaction.emoji,
+      count: 0,
+      userIds: new Set(),
+    };
+    group.count += 1;
+    group.userIds.add(String(reactionUserId));
+    groups.set(reaction.emoji, group);
+  });
+  return [...groups.values()].map(({ emoji, count, userIds }) => ({
+    emoji,
+    count,
+    selected: userIds.has(currentUserId),
+  }));
 };
 
 const api = async (url, token, options = {}) => {
@@ -78,6 +102,12 @@ function Icon({ name, ...props }) {
       <path d="m21.4 11.1-8.5 8.5a6 6 0 0 1-8.5-8.5l9.2-9.2a4 4 0 0 1 5.7 5.7l-9.2 9.2a2 2 0 0 1-2.8-2.8l8.5-8.5" />
     ),
     close: <path d="m18 6-12 12M6 6l12 12" />,
+    smile: (
+      <>
+        <circle cx="12" cy="12" r="9" />
+        <path d="M9 9h.01M15 9h.01M8.5 14.5s1.4 2 3.5 2 3.5-2 3.5-2" />
+      </>
+    ),
     download: (
       <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4m4-5 5 5 5-5m-5 5V3" />
     ),
@@ -354,7 +384,14 @@ function PersonResults({ people, online, selected, onToggle, emptyText }) {
   });
 }
 
-function MessageRow({ message, user, onDelete, onOpenMedia, onDownload }) {
+function MessageRow({
+  message,
+  user,
+  onDelete,
+  onOpenMedia,
+  onDownload,
+  onReact,
+}) {
   const sender = message.sender;
   const senderId =
     typeof sender === "object" ? sender?._id || sender?.id : sender;
@@ -379,6 +416,8 @@ function MessageRow({ message, user, onDelete, onOpenMedia, onDownload }) {
         : [];
   const photoStack =
     media.length > 1 && media.every((item) => item.type === "image");
+  const reactionGroups = summarizeReactions(message.reactions, user.id);
+  const canReact = !mine && !message.isDeleted;
   return (
     <div
       className={`message-row${mine ? " mine" : ""}`}
@@ -480,7 +519,45 @@ function MessageRow({ message, user, onDelete, onOpenMedia, onDownload }) {
             message.content
           )}
         </div>
+        {canReact && (
+          <details className="message-reaction-picker">
+            <summary aria-label="React to message" title="React to message">
+              <Icon name="smile" />
+            </summary>
+            <div className="message-reaction-menu">
+              {reactionOptions.map((emoji) => (
+                <button
+                  key={emoji}
+                  type="button"
+                  aria-label={`React with ${emoji}`}
+                  title={`React with ${emoji}`}
+                  onClick={() => onReact(message._id, emoji)}
+                >
+                  {emoji}
+                </button>
+              ))}
+            </div>
+          </details>
+        )}
       </div>
+      {!message.isDeleted && reactionGroups.length > 0 && (
+        <div className="message-reaction-row">
+          {reactionGroups.map(({ emoji, count, selected }) => (
+            <button
+              key={emoji}
+              className={`message-reaction${selected ? " selected" : ""}`}
+              type="button"
+              aria-label={`${emoji}, ${count} reaction${count === 1 ? "" : "s"}`}
+              aria-pressed={selected}
+              disabled={!canReact}
+              onClick={() => onReact(message._id, emoji)}
+            >
+              <span>{emoji}</span>
+              <span className="message-reaction-count">{count}</span>
+            </button>
+          ))}
+        </div>
+      )}
       <div className="message-meta">
         {new Date(message.createdAt).toLocaleTimeString([], {
           hour: "numeric",
@@ -645,6 +722,17 @@ function App() {
             : item,
         ),
       ),
+    );
+    socket.on(
+      "message:reactions",
+      ({ conversationId, messageId, reactions }) => {
+        if (currentConversationRef.current?._id !== conversationId) return;
+        setMessages((previous) =>
+          previous.map((message) =>
+            message._id === messageId ? { ...message, reactions } : message,
+          ),
+        );
+      },
     );
     socket.on("message:notification", ({ conversationId, sender, content }) => {
       if (currentConversationRef.current?._id === conversationId) return;
@@ -1097,6 +1185,22 @@ function App() {
     );
   };
 
+  const toggleReaction = (messageId, emoji) => {
+    const socket = socketRef.current;
+    if (!currentConversation || !socket?.connected) {
+      showError("Reconnecting to chat. Try again in a moment.");
+      return;
+    }
+    socket.emit(
+      "message:react",
+      { conversationId: currentConversation._id, messageId, emoji },
+      (result) => {
+        if (!result?.ok)
+          showError(result?.message || "Could not update reaction");
+      },
+    );
+  };
+
   const downloadMedia = async (messageId, mediaIndex) => {
     if (!currentConversation) return;
     try {
@@ -1424,6 +1528,7 @@ function App() {
                       onDelete={deleteMessage}
                       onOpenMedia={openViewer}
                       onDownload={downloadMedia}
+                      onReact={toggleReaction}
                     />
                   ))}
                 </div>

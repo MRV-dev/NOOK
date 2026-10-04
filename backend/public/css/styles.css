@@ -847,7 +847,10 @@ textarea:focus {
   overflow-y: auto;
   overscroll-behavior-y: contain;
   padding: 24px clamp(16px, 5vw, 72px);
-  background-image: radial-gradient(var(--message-dots) 0.7px, transparent 0.7px);
+  background-image: radial-gradient(
+    var(--message-dots) 0.7px,
+    transparent 0.7px
+  );
   background-size: 22px 22px;
 }
 .day-divider {
@@ -1253,6 +1256,97 @@ textarea:focus {
     left: 8px;
     justify-content: flex-start;
   }
+}
+.message-reaction-row {
+  display: flex;
+  min-height: 28px;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 5px;
+}
+.message-reaction,
+.message-reaction-picker summary {
+  display: flex;
+  min-height: 27px;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 2px 7px;
+  color: var(--ink);
+  background: var(--paper);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  list-style: none;
+}
+.message-reaction:hover,
+.message-reaction-picker summary:hover {
+  background: var(--hover-bg);
+}
+.message-reaction.selected {
+  border-color: var(--green);
+  color: var(--success-ink);
+  background: var(--green-soft);
+}
+.message-reaction:disabled {
+  cursor: default;
+}
+.message-reaction-count {
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+.message-reaction-picker {
+  position: relative;
+  flex: 0 0 auto;
+}
+.message-reaction-picker summary::-webkit-details-marker {
+  display: none;
+}
+.message-reaction-picker summary {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 0;
+  padding: 0;
+  color: var(--muted);
+  background: var(--hover-bg);
+  line-height: 1;
+}
+.message-reaction-picker summary svg {
+  width: 22px;
+  height: 22px;
+}
+.message-reaction-menu {
+  position: absolute;
+  z-index: 6;
+  bottom: calc(100% + 5px);
+  left: 0;
+  display: grid;
+  grid-template-columns: repeat(6, 30px);
+  gap: 3px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  padding: 5px;
+  background: var(--paper);
+  box-shadow: var(--shadow);
+}
+.message-reaction-menu button {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  border: 0;
+  border-radius: 4px;
+  padding: 0;
+  background: transparent;
+  font-size: 17px;
+  cursor: pointer;
+}
+.message-reaction-menu button:hover,
+.message-reaction-menu button:focus-visible {
+  background: var(--hover-bg);
 }
 .message-actions {
   position: relative;
