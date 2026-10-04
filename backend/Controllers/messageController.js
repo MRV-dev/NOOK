@@ -74,6 +74,7 @@ const getConversationMessages = async (req, res, next) => {
 
     const messages = await Message.find(filter)
       .populate("sender", "username avatarUrl")
+      .populate("systemEvent.members", "username avatarUrl")
       .sort({ createdAt: -1 })
       .limit(limit);
 

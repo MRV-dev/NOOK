@@ -12,6 +12,23 @@ const messageSchema = new mongoose.Schema(
       ref: "User",
       required: true,
     },
+    kind: {
+      type: String,
+      enum: ["user", "system"],
+      default: "user",
+    },
+    systemEvent: {
+      action: {
+        type: String,
+        enum: ["added", "removed"],
+      },
+      members: [
+        {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: "User",
+        },
+      ],
+    },
     content: {
       type: String,
       default: "",
