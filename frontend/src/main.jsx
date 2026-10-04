@@ -796,6 +796,7 @@ function App() {
   const typingTimeoutRef = useRef(null);
   const errorTimeoutRef = useRef(null);
   const notificationTimeoutRef = useRef(null);
+  const themeTransitionTimeoutRef = useRef(null);
   const isTypingRef = useRef(false);
   currentConversationRef.current = currentConversation;
   mediaFilesRef.current = mediaFiles;
@@ -804,6 +805,19 @@ function App() {
     setError(message);
     clearTimeout(errorTimeoutRef.current);
     errorTimeoutRef.current = setTimeout(() => setError(""), 3500);
+  };
+
+  const setThemeOrigin = (element) => {
+    const bounds = element.getBoundingClientRect();
+    const root = document.documentElement;
+    root.style.setProperty(
+      "--theme-origin-x",
+      `${bounds.left + bounds.width / 2}px`,
+    );
+    root.style.setProperty(
+      "--theme-origin-y",
+      `${bounds.top + bounds.height / 2}px`,
+    );
   };
 
   const updateCall = (update) => {
@@ -1086,10 +1100,30 @@ function App() {
   useEffect(() => {
     const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
     const applyTheme = () => {
-      document.documentElement.dataset.theme =
+      const root = document.documentElement;
+      const nextTheme =
         theme === "dark" || (theme === "system" && mediaQuery.matches)
           ? "dark"
           : "light";
+      if (root.dataset.theme && root.dataset.theme !== nextTheme) {
+        const reduceMotion = window.matchMedia(
+          "(prefers-reduced-motion: reduce)",
+        ).matches;
+        if (!reduceMotion && document.startViewTransition) {
+          document.startViewTransition(() => {
+            root.dataset.theme = nextTheme;
+          });
+          return;
+        }
+        if (!reduceMotion) {
+          root.classList.add("theme-transitioning");
+          clearTimeout(themeTransitionTimeoutRef.current);
+          themeTransitionTimeoutRef.current = setTimeout(() => {
+            root.classList.remove("theme-transitioning");
+          }, 260);
+        }
+      }
+      root.dataset.theme = nextTheme;
     };
     const changeTheme = () => {
       if (theme === "system") applyTheme();
@@ -1362,6 +1396,7 @@ function App() {
       clearTimeout(errorTimeoutRef.current);
       clearTimeout(notificationTimeoutRef.current);
       clearTimeout(typingTimeoutRef.current);
+      clearTimeout(themeTransitionTimeoutRef.current);
     },
     [],
   );
@@ -1857,6 +1892,7 @@ function App() {
                     className="icon-button"
                     aria-label="Choose color theme"
                     title="Appearance"
+                    onClick={(event) => setThemeOrigin(event.currentTarget)}
                   >
                     <Icon name="sun" />
                   </summary>
