@@ -1745,18 +1745,18 @@ textarea:focus {
   flex-direction: column;
   overflow: hidden;
   color: #f6f7f6;
-  background: #050706;
+  background: #292929;
   animation: arrive 0.2s ease-out both;
 }
 .call-topbar {
   position: relative;
   z-index: 2;
   display: flex;
-  min-height: 76px;
+  min-height: 58px;
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  padding: max(14px, env(safe-area-inset-top)) 24px 14px;
+  padding: max(8px, env(safe-area-inset-top)) 20px 8px;
   background: linear-gradient(180deg, rgba(0, 0, 0, 0.65), transparent);
 }
 .call-topbar-copy {
@@ -1796,15 +1796,135 @@ textarea:focus {
   flex: 1;
   place-items: center;
   overflow: hidden;
-  background: #050706;
+  background: #303030;
 }
-.call-remote-video {
-  position: absolute;
-  inset: 0;
+.call-incoming-stage {
+  display: grid;
+  justify-items: center;
+  align-content: center;
+  gap: 10px;
+  min-height: 0;
+  padding: 24px;
+  color: #f6f7f6;
+  text-align: center;
+}
+.call-incoming-stage .avatar,
+.call-incoming-avatar {
+  display: block;
+  width: 112px;
+  height: 112px;
+  border: 2px solid rgba(255, 255, 255, 0.22);
+  border-radius: 50%;
+  object-fit: cover;
+}
+.call-incoming-stage strong {
+  margin-top: 8px;
+  font: 700 20px Manrope, sans-serif;
+}
+.call-incoming-stage > span:last-child {
+  color: #bec6c1;
+  font-size: 14px;
+}
+.call-participant-grid {
+  display: grid;
   width: 100%;
   height: 100%;
-  object-fit: contain;
+  min-height: 0;
+  grid-template-columns: repeat(auto-fit, minmax(min(280px, 100%), 1fr));
+  grid-auto-rows: minmax(0, 1fr);
+  align-content: center;
+  gap: 12px;
+  overflow-y: auto;
+  padding: 82px 24px 116px;
+}
+.call-participant-grid.is-group-call {
+  width: min(100%, 1440px);
+  height: auto;
+  max-height: 100%;
+  grid-template-columns: repeat(var(--call-grid-tracks, 4), minmax(0, 1fr));
+  grid-auto-rows: auto;
+  align-content: center;
+  gap: 8px;
+  margin: auto;
+  overflow: visible;
+  padding: 0;
+}
+.call-participant-tile {
+  position: relative;
+  display: grid;
+  min-width: 0;
+  min-height: 0;
+  aspect-ratio: 16 / 9;
+  place-items: center;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 8px;
+  background: #161a18;
+}
+.call-participant-grid.is-group-call .call-participant-tile {
+  grid-column: span 2;
+}
+.call-participant-grid.is-group-call .call-participant-tile:nth-child(6n + 1) {
+  background: #21392e;
+}
+.call-participant-grid.is-group-call .call-participant-tile:nth-child(6n + 2) {
+  background: #4a553f;
+}
+.call-participant-grid.is-group-call .call-participant-tile:nth-child(6n + 3) {
+  background: #514553;
+}
+.call-participant-grid.is-group-call .call-participant-tile:nth-child(6n + 4) {
+  background: #b89b91;
+}
+.call-participant-grid.is-group-call .call-participant-tile:nth-child(6n + 5) {
+  background: #627d9d;
+}
+.call-participant-grid.is-group-call .call-participant-tile:nth-child(6n) {
+  background: #35383a;
+}
+.call-participant-video {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  object-fit: cover;
   background: #050706;
+}
+.call-self-video {
+  transform: scaleX(-1);
+}
+.call-participant-video:not(.call-self-video) {
+  transform: scaleX(-1);
+}
+.call-participant-avatar {
+  width: 64px;
+  height: 64px;
+  border: 2px solid rgba(255, 255, 255, 0.72);
+  border-radius: 50%;
+  object-fit: cover;
+}
+.call-participant-name {
+  position: absolute;
+  bottom: 10px;
+  left: 10px;
+  max-width: calc(100% - 20px);
+  overflow: hidden;
+  border-radius: 4px;
+  padding: 4px 8px;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.58);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.call-camera-off {
+  position: absolute;
+  right: 8px;
+  bottom: 9px;
+  border-radius: 50%;
+  padding: 4px 7px;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.58);
+  font-size: 10px;
 }
 .call-remote-placeholder {
   display: grid;
@@ -1853,16 +1973,16 @@ textarea:focus {
   position: relative;
   z-index: 2;
   display: flex;
-  min-height: 112px;
+  min-height: 84px;
   align-items: center;
   justify-content: center;
-  gap: 18px;
-  padding: 16px 20px max(20px, env(safe-area-inset-bottom));
+  gap: 14px;
+  padding: 8px 16px max(12px, env(safe-area-inset-bottom));
   background: linear-gradient(0deg, rgba(0, 0, 0, 0.7), transparent);
 }
 .call-control-button {
-  width: 62px;
-  height: 62px;
+  width: 56px;
+  height: 56px;
   border-radius: 50%;
   background: #414744;
   transition: transform 0.15s, background 0.15s;
@@ -1960,7 +2080,7 @@ textarea:focus {
 }
 @media (max-width: 720px) {
   .call-topbar {
-    min-height: 68px;
+    min-height: 54px;
     padding-right: 16px;
     padding-left: 16px;
   }
@@ -1971,11 +2091,24 @@ textarea:focus {
     border-radius: 16px;
   }
   .call-controls {
-    min-height: 100px;
+    min-height: 78px;
     gap: 14px;
   }
+  .call-participant-grid {
+    grid-template-columns: minmax(0, 1fr);
+    grid-auto-rows: minmax(180px, 1fr);
+    gap: 8px;
+    padding: 72px 10px 102px;
+  }
+  .call-participant-grid.is-group-call {
+    width: 100%;
+    grid-template-columns: repeat(var(--call-grid-tracks, 4), minmax(0, 1fr));
+    grid-auto-rows: auto;
+    align-content: center;
+    padding: 8px;
+  }
   .call-control-button {
-    width: 58px;
-    height: 58px;
+    width: 54px;
+    height: 54px;
   }
 }
