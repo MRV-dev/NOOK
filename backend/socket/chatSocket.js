@@ -8,6 +8,7 @@ const { scheduleIncomingMessageEmail } = require("../services/emailService");
 const { deleteMediaAsset } = require("../services/cloudinaryService");
 
 const conversationRoom = (conversationId) => `conversation:${conversationId}`;
+const reactionEmojis = new Set(["❤️", "😂", "😮", "😢", "👍", "🔥"]);
 
 const attachChatSockets = (io) => {
   const onlineUsers = new Map();
@@ -20,7 +21,9 @@ const attachChatSockets = (io) => {
 
     try {
       const payload = jwt.verify(token, process.env.JWT_SECRET);
-      const user = await User.findById(payload.sub).select("_id username avatarUrl");
+      const user = await User.findById(payload.sub).select(
+        "_id username avatarUrl",
+      );
       if (!user) {
         return next(new Error("Invalid authentication token"));
       }
@@ -62,13 +65,19 @@ const attachChatSockets = (io) => {
           participants: user.id,
         });
         if (!conversation) {
-          return acknowledge?.({ ok: false, message: "Conversation not found" });
+          return acknowledge?.({
+            ok: false,
+            message: "Conversation not found",
+          });
         }
 
         socket.join(conversationRoom(conversationId));
         return acknowledge?.({ ok: true, conversationId });
       } catch {
-        return acknowledge?.({ ok: false, message: "Could not join conversation" });
+        return acknowledge?.({
+          ok: false,
+          message: "Could not join conversation",
+        });
       }
     });
 
@@ -76,8 +85,14 @@ const attachChatSockets = (io) => {
       const conversationId = payload.conversationId;
       const room = conversationRoom(conversationId);
 
-      if (!mongoose.isValidObjectId(conversationId) || !socket.rooms.has(room)) {
-        return acknowledge?.({ ok: false, message: "Join the conversation first" });
+      if (
+        !mongoose.isValidObjectId(conversationId) ||
+        !socket.rooms.has(room)
+      ) {
+        return acknowledge?.({
+          ok: false,
+          message: "Join the conversation first",
+        });
       }
 
       try {
@@ -87,7 +102,10 @@ const attachChatSockets = (io) => {
         );
         return acknowledge?.({ ok: true });
       } catch {
-        return acknowledge?.({ ok: false, message: "Could not update read status" });
+        return acknowledge?.({
+          ok: false,
+          message: "Could not update read status",
+        });
       }
     });
 
@@ -101,7 +119,10 @@ const attachChatSockets = (io) => {
         !mongoose.isValidObjectId(messageId) ||
         !socket.rooms.has(room)
       ) {
-        return acknowledge?.({ ok: false, message: "Join the conversation first" });
+        return acknowledge?.({
+          ok: false,
+          message: "Join the conversation first",
+        });
       }
 
       try {
@@ -139,7 +160,10 @@ const attachChatSockets = (io) => {
 
         const cloudinaryAssets = (existingMessage.media || [])
           .filter((asset) => asset.publicId && asset.type)
-          .map((asset) => ({ publicId: asset.publicId, mediaType: asset.type }));
+          .map((asset) => ({
+            publicId: asset.publicId,
+            mediaType: asset.type,
+          }));
         if (existingMessage.mediaPublicId && existingMessage.mediaType) {
           cloudinaryAssets.push({
             publicId: existingMessage.mediaPublicId,
@@ -161,23 +185,96 @@ const attachChatSockets = (io) => {
         });
         return acknowledge?.({ ok: true });
       } catch {
-        return acknowledge?.({ ok: false, message: "Could not delete message" });
+        return acknowledge?.({
+          ok: false,
+          message: "Could not delete message",
+        });
+      }
+    });
+
+    socket.on("message:react", async (payload = {}, acknowledge) => {
+      const { conversationId, messageId, emoji } = payload;
+      const room = conversationRoom(conversationId);
+
+      if (
+        !mongoose.isValidObjectId(conversationId) ||
+        !mongoose.isValidObjectId(messageId) ||
+        !reactionEmojis.has(emoji) ||
+        !socket.rooms.has(room)
+      ) {
+        return acknowledge?.({
+          ok: false,
+          message: "Invalid reaction request",
+        });
+      }
+
+      try {
+        const message = await Message.findOne({
+          _id: messageId,
+          conversation: conversationId,
+          sender: { $ne: user.id },
+          kind: { $ne: "system" },
+          isDeleted: { $ne: true },
+        });
+        if (!message) {
+          return acknowledge?.({
+            ok: false,
+            message: "Message not found or you cannot react to it",
+          });
+        }
+
+        const existingReaction = message.reactions.find(
+          (reaction) => reaction.user.toString() === user.id,
+        );
+        if (existingReaction?.emoji === emoji) {
+          message.reactions = message.reactions.filter(
+            (reaction) => reaction.user.toString() !== user.id,
+          );
+        } else {
+          message.reactions = [
+            ...message.reactions.filter(
+              (reaction) => reaction.user.toString() !== user.id,
+            ),
+            { user: user.id, emoji },
+          ];
+        }
+
+        await message.save();
+        await message.populate("reactions.user", "username avatarUrl");
+        io.to(room).emit("message:reactions", {
+          conversationId,
+          messageId,
+          reactions: message.reactions,
+        });
+        return acknowledge?.({ ok: true });
+      } catch {
+        return acknowledge?.({
+          ok: false,
+          message: "Could not update reaction",
+        });
       }
     });
 
     socket.on("message:send", async (payload = {}, acknowledge) => {
       const conversationId = payload.conversationId;
-      const content = typeof payload.content === "string" ? payload.content.trim() : "";
+      const content =
+        typeof payload.content === "string" ? payload.content.trim() : "";
       const room = conversationRoom(conversationId);
 
       if (!mongoose.isValidObjectId(conversationId)) {
         return acknowledge?.({ ok: false, message: "Invalid conversation ID" });
       }
       if (!content || content.length > 10000) {
-        return acknowledge?.({ ok: false, message: "Message content must be between 1 and 10000 characters" });
+        return acknowledge?.({
+          ok: false,
+          message: "Message content must be between 1 and 10000 characters",
+        });
       }
       if (!socket.rooms.has(room)) {
-        return acknowledge?.({ ok: false, message: "Join the conversation before sending messages" });
+        return acknowledge?.({
+          ok: false,
+          message: "Join the conversation before sending messages",
+        });
       }
 
       try {
@@ -186,7 +283,10 @@ const attachChatSockets = (io) => {
           participants: user.id,
         }).select("participants type name");
         if (!conversation) {
-          return acknowledge?.({ ok: false, message: "Conversation not found" });
+          return acknowledge?.({
+            ok: false,
+            message: "Conversation not found",
+          });
         }
 
         const message = await createMessageForUser({
@@ -196,7 +296,10 @@ const attachChatSockets = (io) => {
         });
         if (!message) {
           socket.leave(room);
-          return acknowledge?.({ ok: false, message: "Conversation not found" });
+          return acknowledge?.({
+            ok: false,
+            message: "Conversation not found",
+          });
         }
 
         socket.to(room).emit("message:new", message);
@@ -219,7 +322,8 @@ const attachChatSockets = (io) => {
             senderName: message.sender?.username || user.username,
             recipientIds,
             content: message.content,
-            conversationName: conversation.type === "group" ? conversation.name : "",
+            conversationName:
+              conversation.type === "group" ? conversation.name : "",
           });
         }
 
@@ -234,8 +338,14 @@ const attachChatSockets = (io) => {
       const isTyping = payload.isTyping === true;
       const room = conversationRoom(conversationId);
 
-      if (!mongoose.isValidObjectId(conversationId) || !socket.rooms.has(room)) {
-        return acknowledge?.({ ok: false, message: "Join the conversation first" });
+      if (
+        !mongoose.isValidObjectId(conversationId) ||
+        !socket.rooms.has(room)
+      ) {
+        return acknowledge?.({
+          ok: false,
+          message: "Join the conversation first",
+        });
       }
 
       socket.to(room).emit("typing:update", {
@@ -258,7 +368,10 @@ const attachChatSockets = (io) => {
       User.findByIdAndUpdate(user.id, { lastSeenAt }).catch((error) => {
         console.error("Could not update last-seen time:", error.message);
       });
-      socket.broadcast.emit("presence:offline", { userId: user.id, lastSeenAt });
+      socket.broadcast.emit("presence:offline", {
+        userId: user.id,
+        lastSeenAt,
+      });
     });
   });
 
