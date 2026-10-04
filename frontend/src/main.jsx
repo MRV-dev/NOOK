@@ -847,7 +847,7 @@ function App() {
   useEffect(() => {
     const element = messagesRef.current;
     if (element) element.scrollTop = element.scrollHeight;
-  }, [messages, currentConversation]);
+  }, [messages.length, currentConversation?._id]);
 
   useEffect(() => {
     const input = messageInputRef.current;
