@@ -207,7 +207,7 @@ const sendPasswordResetEmail = async ({ email, username, resetUrl }) => {
   await transporter.sendMail({
     from: process.env.EMAIL_FROM || emailUser,
     to: email,
-    subject: "Reset your Real-Time Chat password",
+    subject: "Reset your Nook password",
     text: [
       `Hi ${displayName},`,
       "",
@@ -220,14 +220,14 @@ const sendPasswordResetEmail = async ({ email, username, resetUrl }) => {
       <!doctype html>
       <html lang="en">
         <body style="margin:0;padding:0;background:#eef3ef;font-family:Arial,Helvetica,sans-serif;color:#1d2a25;">
-          <div style="display:none;max-height:0;overflow:hidden;opacity:0;">Use this one-time link to reset your Real-Time Chat password.</div>
+          <div style="display:none;max-height:0;overflow:hidden;opacity:0;">Use this one-time link to reset your Nook password.</div>
           <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#eef3ef;padding:32px 12px;">
             <tr>
               <td align="center">
                 <table role="presentation" width="600" cellspacing="0" cellpadding="0" style="width:100%;max-width:600px;background:#ffffff;border:1px solid #dfe8e1;border-radius:10px;overflow:hidden;">
                   <tr>
                     <td style="padding:24px 32px;background:#1e4439;color:#f4f8f5;">
-                      <div style="font-size:12px;line-height:18px;font-weight:700;letter-spacing:1px;color:#bfe3ce;">REAL-TIME CHAT</div>
+                      <div style="font-size:12px;line-height:18px;font-weight:700;letter-spacing:1px;color:#bfe3ce;">NOOK</div>
                       <div style="margin-top:5px;font-size:19px;line-height:26px;font-weight:700;">Account security</div>
                     </td>
                   </tr>
@@ -253,7 +253,7 @@ const sendPasswordResetEmail = async ({ email, username, resetUrl }) => {
                     </td>
                   </tr>
                   <tr>
-                    <td style="padding:16px 32px;border-top:1px solid #e7ece7;color:#89958e;font-size:11px;line-height:18px;">This is an automated account security message from Real-Time Chat.</td>
+                    <td style="padding:16px 32px;border-top:1px solid #e7ece7;color:#89958e;font-size:11px;line-height:18px;">This is an automated account security message from Nook.</td>
                   </tr>
                 </table>
               </td>
@@ -277,11 +277,11 @@ const sendPasswordChangedEmail = async ({ email, username }) => {
   await transporter.sendMail({
     from: process.env.EMAIL_FROM || emailUser,
     to: email,
-    subject: "Your Real-Time Chat password was changed",
+    subject: "Your Nook password was changed",
     text: [
       `Hi ${displayName},`,
       "",
-      `Your Real-Time Chat password was changed on ${changedAt}.`,
+      `Your Nook password was changed on ${changedAt}.`,
       "",
       "If you did not make this change, request another password reset and secure your email account.",
     ].join("\n"),
@@ -289,14 +289,14 @@ const sendPasswordChangedEmail = async ({ email, username }) => {
       <!doctype html>
       <html lang="en">
         <body style="margin:0;padding:0;background:#eef3ef;font-family:Arial,Helvetica,sans-serif;color:#1d2a25;">
-          <div style="display:none;max-height:0;overflow:hidden;opacity:0;">Your Real-Time Chat password was changed.</div>
+          <div style="display:none;max-height:0;overflow:hidden;opacity:0;">Your Nook password was changed.</div>
           <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#eef3ef;padding:32px 12px;">
             <tr>
               <td align="center">
                 <table role="presentation" width="600" cellspacing="0" cellpadding="0" style="width:100%;max-width:600px;background:#ffffff;border:1px solid #dfe8e1;border-radius:10px;overflow:hidden;">
                   <tr>
                     <td style="padding:24px 32px;background:#1e4439;color:#f4f8f5;">
-                      <div style="font-size:12px;line-height:18px;font-weight:700;letter-spacing:1px;color:#bfe3ce;">REAL-TIME CHAT</div>
+                      <div style="font-size:12px;line-height:18px;font-weight:700;letter-spacing:1px;color:#bfe3ce;">NOOK</div>
                       <div style="margin-top:5px;font-size:19px;line-height:26px;font-weight:700;">Account security</div>
                     </td>
                   </tr>
@@ -305,7 +305,7 @@ const sendPasswordChangedEmail = async ({ email, username }) => {
                       <div style="font-size:12px;line-height:18px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:#1d715c;">Password updated</div>
                       <h1 style="margin:8px 0 16px;font-size:26px;line-height:34px;color:#1d2a25;">Your password has been changed</h1>
                       <p style="margin:0 0 18px;font-size:16px;line-height:25px;">Hi ${safeName},</p>
-                      <p style="margin:0 0 22px;font-size:15px;line-height:24px;color:#53635a;">This email confirms that your Real-Time Chat account password was changed.</p>
+                      <p style="margin:0 0 22px;font-size:15px;line-height:24px;color:#53635a;">This email confirms that your Nook account password was changed.</p>
                       <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin:0 0 24px;background:#f2f7f3;border:1px solid #dfe8e1;border-radius:7px;">
                         <tr>
                           <td style="padding:16px 18px;">
@@ -320,7 +320,7 @@ const sendPasswordChangedEmail = async ({ email, username }) => {
                     </td>
                   </tr>
                   <tr>
-                    <td style="padding:16px 32px;border-top:1px solid #e7ece7;color:#89958e;font-size:11px;line-height:18px;">This is an automated account security message from Real-Time Chat.</td>
+                    <td style="padding:16px 32px;border-top:1px solid #e7ece7;color:#89958e;font-size:11px;line-height:18px;">This is an automated account security message from Nook.</td>
                   </tr>
                 </table>
               </td>

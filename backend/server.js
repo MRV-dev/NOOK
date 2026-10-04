@@ -49,7 +49,7 @@ app.use(
 );
 
 app.get("/api/health", (req, res) => {
-  res.json({ status: "ok", message: "Real-Time Chat API is running" });
+  res.json({ status: "ok", message: "Nook API is running" });
 });
 
 app.use("/api/users", userRoutes);
