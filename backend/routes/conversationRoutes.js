@@ -5,6 +5,8 @@ const {
   addParticipants,
   updateGroupName,
   hideConversation,
+  leaveGroupConversation,
+  removeGroupParticipant,
 } = require("../Controllers/conversationController");
 const requireAuth = require("../middleware/auth");
 
@@ -14,6 +16,8 @@ const router = express.Router();
 router.get("/", requireAuth, getMyConversations);
 router.post("/", requireAuth, createConversation);
 router.delete("/:conversationId", requireAuth, hideConversation);
+router.delete("/:conversationId/participants/:participantId", requireAuth, removeGroupParticipant);
+router.post("/:conversationId/leave", requireAuth, leaveGroupConversation);
 router.post("/:conversationId/participants", requireAuth, addParticipants);
 router.patch("/:conversationId", requireAuth, updateGroupName);
 

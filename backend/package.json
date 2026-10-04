@@ -4,6 +4,9 @@
   "description": "",
   "main": "server.js",
   "scripts": {
+    "start": "npm run build && node server.js",
+    "dev": "concurrently -k \"nodemon server.js\" \"npm --prefix ../frontend run dev\"",
+    "build": "npm --prefix ../frontend run build",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
@@ -22,5 +25,8 @@
     "nodemon": "^3.1.14",
     "redis": "^6.3.0",
     "socket.io": "^4.8.4"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.0"
   }
 }

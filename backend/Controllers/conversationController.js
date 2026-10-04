@@ -1,5 +1,6 @@
 const mongoose = require("mongoose");
 const Conversation = require("../models/conversation.model");
+const Message = require("../models/message.model");
 const User = require("../models/user.model");
 
 const emitConversationUpdated = (io, conversation) => {
@@ -144,16 +145,17 @@ const addParticipants = async (req, res, next) => {
       return res.status(400).json({ message: "Those people are already in this group" });
     }
 
-    const existingUserCount = await User.countDocuments({
-      _id: { $in: newParticipantIds },
-    });
+    const existingUserCount = await User.countDocuments({ _id: { $in: newParticipantIds } });
     if (existingUserCount !== newParticipantIds.length) {
       return res.status(400).json({ message: "One or more people do not exist" });
     }
 
     await Conversation.updateOne(
       { _id: conversation._id, participants: userId },
-      { $addToSet: { participants: { $each: newParticipantIds } } },
+      {
+        $addToSet: { participants: { $each: newParticipantIds } },
+        $pull: { hiddenFor: { $in: newParticipantIds } },
+      },
     );
 
     const updatedConversation = await Conversation.findById(conversation._id)
@@ -164,8 +166,70 @@ const addParticipants = async (req, res, next) => {
         populate: { path: "sender", select: "username avatarUrl" },
       });
 
+    await publishGroupActivity({
+      io: req.app.get("io"),
+      conversationId: conversation._id,
+      actorId: userId,
+      action: "added",
+      memberIds: newParticipantIds,
+    });
     emitConversationUpdated(req.app.get("io"), updatedConversation);
 
+    return res.json(updatedConversation);
+  } catch (error) {
+    return next(error);
+  }
+};
+
+const removeGroupParticipant = async (req, res, next) => {
+  try {
+    const userId = req.user?._id;
+    const { conversationId, participantId } = req.params;
+    if (!userId) {
+      return res.status(401).json({ message: "Authentication required" });
+    }
+    if (
+      !mongoose.isValidObjectId(conversationId) ||
+      !mongoose.isValidObjectId(participantId)
+    ) {
+      return res.status(400).json({ message: "Invalid group or participant ID" });
+    }
+    if (userId.toString() === participantId) {
+      return res.status(400).json({ message: "Use leave group to remove yourself" });
+    }
+
+    const conversation = await Conversation.findOneAndUpdate(
+      {
+        _id: conversationId,
+        type: "group",
+        participants: { $all: [userId, participantId] },
+      },
+      { $pull: { participants: participantId, hiddenFor: participantId } },
+      { new: true },
+    );
+    if (!conversation) {
+      return res.status(404).json({ message: "Group member not found" });
+    }
+
+    const io = req.app.get("io");
+    await publishGroupActivity({
+      io,
+      conversationId,
+      actorId: userId,
+      action: "removed",
+      memberIds: [participantId],
+    });
+    io?.in(`user:${participantId}`).socketsLeave(`conversation:${conversationId}`);
+    io?.to(`user:${participantId}`).emit("conversation:hidden", { conversationId });
+
+    const updatedConversation = await Conversation.findById(conversationId)
+      .populate("participants", "username avatarUrl")
+      .populate({
+        path: "lastMessage",
+        select: "content sender createdAt",
+        populate: { path: "sender", select: "username avatarUrl" },
+      });
+    emitConversationUpdated(io, updatedConversation);
     return res.json(updatedConversation);
   } catch (error) {
     return next(error);
@@ -244,10 +308,62 @@ const hideConversation = async (req, res, next) => {
   }
 };
 
+const leaveGroupConversation = async (req, res, next) => {
+  try {
+    const userId = req.user?._id;
+    const { conversationId } = req.params;
+
+    if (!userId) {
+      return res.status(401).json({ message: "Authentication required" });
+    }
+    if (!mongoose.isValidObjectId(conversationId)) {
+      return res.status(400).json({ message: "Invalid conversation ID" });
+    }
+
+    const conversation = await Conversation.findOneAndUpdate(
+      { _id: conversationId, type: "group", participants: userId },
+      { $pull: { participants: userId, hiddenFor: userId } },
+      { new: true },
+    ).select("participants");
+    if (!conversation) {
+      return res.status(404).json({ message: "Group conversation not found" });
+    }
+
+    const io = req.app.get("io");
+    const userRoom = `user:${userId}`;
+    io?.in(userRoom).socketsLeave(`conversation:${conversationId}`);
+    io?.to(userRoom).emit("conversation:hidden", { conversationId });
+    conversation.participants.forEach((participantId) => {
+      io?.to(`user:${participantId}`).emit("conversation:updated", { conversationId });
+    });
+
+    return res.json({ ok: true });
+  } catch (error) {
+    return next(error);
+  }
+};
+
 module.exports = {
   getMyConversations,
   createConversation,
   addParticipants,
+  removeGroupParticipant,
   updateGroupName,
   hideConversation,
+  leaveGroupConversation,
+};
+
+const publishGroupActivity = async ({ io, conversationId, actorId, action, memberIds }) => {
+  const event = await Message.create({
+    conversation: conversationId,
+    sender: actorId,
+    kind: "system",
+    systemEvent: { action, members: memberIds },
+    readBy: [actorId],
+  });
+  const populatedEvent = await event.populate([
+    { path: "sender", select: "username avatarUrl" },
+    { path: "systemEvent.members", select: "username avatarUrl" },
+  ]);
+  io?.to(`conversation:${conversationId}`).emit("message:new", populatedEvent);
 };

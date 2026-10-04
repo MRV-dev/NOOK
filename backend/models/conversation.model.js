@@ -17,8 +17,10 @@ const conversationSchema = new mongoose.Schema(
       ],
       required: true,
       validate: {
-        validator: (participants) => participants.length >= 2,
-        message: "A conversation must have at least two participants",
+        validator: function (participants) {
+          return this.type === "group" ? participants.length >= 1 : participants.length >= 2;
+        },
+        message: "A direct conversation must have at least two participants",
       },
     },
     hiddenFor: [
