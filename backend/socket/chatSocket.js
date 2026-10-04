@@ -168,6 +168,7 @@ const attachChatSockets = (io) => {
                 id: user.id,
                 username: user.username,
                 avatarUrl: user.avatarUrl,
+                cameraOff: false,
               },
             ],
           ]),
@@ -217,6 +218,7 @@ const attachChatSockets = (io) => {
         id: user.id,
         username: user.username,
         avatarUrl: user.avatarUrl,
+        cameraOff: false,
       });
       activeCall.acceptedAt ||= Date.now();
       existingParticipants.forEach((participant) => {
@@ -273,6 +275,35 @@ const attachChatSockets = (io) => {
         callId,
         from: activeCall.participants.get(user.id),
         answer,
+      });
+      return acknowledge?.({ ok: true });
+    });
+
+    socket.on("call:camera", (payload = {}, acknowledge) => {
+      const { conversationId, callId, cameraOff } = payload;
+      const activeCall = activeCalls.get(conversationId);
+      if (
+        !activeCall ||
+        activeCall.callId !== callId ||
+        !activeCall.participants.has(user.id) ||
+        typeof cameraOff !== "boolean"
+      ) {
+        return acknowledge?.({ ok: false, message: "Call is no longer active" });
+      }
+
+      const participant = {
+        ...activeCall.participants.get(user.id),
+        cameraOff,
+      };
+      activeCall.participants.set(user.id, participant);
+      activeCall.participants.forEach((member) => {
+        if (member.id !== user.id) {
+          io.to(`user:${member.id}`).emit("call:camera", {
+            conversationId,
+            callId,
+            participant,
+          });
+        }
       });
       return acknowledge?.({ ok: true });
     });
