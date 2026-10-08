@@ -1,7 +1,10 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:socket_io_client/socket_io_client.dart' as socket_io;
+import 'package:video_player/video_player.dart';
 
 import '../services/nook_api.dart';
 
@@ -464,8 +467,13 @@ class ChatScreen extends StatefulWidget {
 }
 
 class _ChatScreenState extends State<ChatScreen> {
+  static const _maxMediaFiles = 8;
+  static const _maxMediaFileSize = 25 * 1024 * 1024;
+
+  final _imagePicker = ImagePicker();
   final _messageController = TextEditingController();
   final _scrollController = ScrollController();
+  List<XFile> _selectedMedia = [];
   late final String _conversationId;
   late final void Function(dynamic) _onMessage;
   List<Map<String, dynamic>> _messages = [];
@@ -544,17 +552,66 @@ class _ChatScreenState extends State<ChatScreen> {
     });
   }
 
+  Future<void> _pickMedia() async {
+    final remainingSlots = _maxMediaFiles - _selectedMedia.length;
+    if (remainingSlots <= 0) {
+      _showMediaError('You can attach up to 8 files per message');
+      return;
+    }
+
+    try {
+      final files = await _imagePicker.pickMultipleMedia(limit: remainingSlots);
+      if (!mounted || files.isEmpty) return;
+
+      final acceptedFiles = <XFile>[];
+      for (final file in files) {
+        if (nookMediaMimeType(file) == null) {
+          _showMediaError('${file.name} is not a supported image or video');
+          continue;
+        }
+        if (await file.length() > _maxMediaFileSize) {
+          _showMediaError('${file.name} is larger than 25 MB');
+          continue;
+        }
+        acceptedFiles.add(file);
+      }
+      if (acceptedFiles.isNotEmpty && mounted) {
+        setState(() => _selectedMedia = [..._selectedMedia, ...acceptedFiles]);
+      }
+    } on Object catch (error) {
+      if (mounted) _showMediaError(error.toString());
+    }
+  }
+
+  void _showMediaError(String message) {
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  void _removeMedia(int index) {
+    setState(() => _selectedMedia.removeAt(index));
+  }
+
   Future<void> _sendMessage() async {
     final content = _messageController.text.trim();
-    if (content.isEmpty || _sending) return;
+    if ((content.isEmpty && _selectedMedia.isEmpty) || _sending) return;
     setState(() => _sending = true);
-    _messageController.clear();
     try {
-      final message = await widget.api.sendMessage(_conversationId, content);
-      if (mounted) _addMessage(message);
+      final message = _selectedMedia.isEmpty
+          ? await widget.api.sendMessage(_conversationId, content)
+          : await widget.api.sendMediaMessage(
+              _conversationId,
+              _selectedMedia,
+              content: content,
+            );
+      if (mounted) {
+        _messageController.clear();
+        setState(() => _selectedMedia = []);
+        _addMessage(message);
+      }
     } on Object catch (error) {
       if (mounted) {
-        _messageController.text = content;
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(SnackBar(content: Text(error.toString())));
@@ -619,6 +676,7 @@ class _ChatScreenState extends State<ChatScreen> {
                     final senderId = (sender['id'] ?? sender['_id'])
                         ?.toString();
                     final mine = senderId == widget.userId;
+                    final attachments = _messageAttachments(message);
                     if (message['kind'] == 'system' ||
                         message['kind'] == 'call') {
                       return Padding(
@@ -677,6 +735,15 @@ class _ChatScreenState extends State<ChatScreen> {
                               ),
                               const SizedBox(height: 3),
                             ],
+                            if (message['isDeleted'] != true)
+                              for (final attachment in attachments)
+                                Padding(
+                                  padding: const EdgeInsets.only(bottom: 8),
+                                  child: _MessageAttachment(
+                                    url: attachment['url']?.toString() ?? '',
+                                    type: attachment['type']?.toString() ?? '',
+                                  ),
+                                ),
                             Text(
                               message['isDeleted'] == true
                                   ? 'Message removed'
@@ -711,43 +778,117 @@ class _ChatScreenState extends State<ChatScreen> {
           top: false,
           child: Padding(
             padding: const EdgeInsets.fromLTRB(12, 8, 12, 10),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.end,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
               children: [
-                Expanded(
-                  child: TextField(
-                    controller: _messageController,
-                    minLines: 1,
-                    maxLines: 5,
-                    textCapitalization: TextCapitalization.sentences,
-                    onSubmitted: (_) => _sendMessage(),
-                    decoration: const InputDecoration(
-                      hintText: 'Write a message',
-                      contentPadding: EdgeInsets.symmetric(
-                        horizontal: 17,
-                        vertical: 13,
-                      ),
+                if (_selectedMedia.isNotEmpty)
+                  SizedBox(
+                    height: 78,
+                    child: ListView.separated(
+                      scrollDirection: Axis.horizontal,
+                      itemCount: _selectedMedia.length,
+                      separatorBuilder: (_, _) => const SizedBox(width: 8),
+                      itemBuilder: (context, index) {
+                        final file = _selectedMedia[index];
+                        final isVideo =
+                            nookMediaMimeType(file)?.startsWith('video/') ??
+                            false;
+                        return SizedBox(
+                          width: 70,
+                          height: 70,
+                          child: Stack(
+                            fit: StackFit.expand,
+                            children: [
+                              ClipRRect(
+                                borderRadius: BorderRadius.circular(10),
+                                child: isVideo
+                                    ? ColoredBox(
+                                        color: Theme.of(
+                                          context,
+                                        ).colorScheme.surfaceContainerHighest,
+                                        child: Icon(
+                                          Icons.play_circle_outline_rounded,
+                                          color: Theme.of(
+                                            context,
+                                          ).colorScheme.onSurfaceVariant,
+                                          size: 34,
+                                        ),
+                                      )
+                                    : Image.file(
+                                        File(file.path),
+                                        fit: BoxFit.cover,
+                                        errorBuilder: (_, _, _) => const Icon(
+                                          Icons.broken_image_outlined,
+                                        ),
+                                      ),
+                              ),
+                              Positioned(
+                                top: 0,
+                                right: 0,
+                                child: IconButton(
+                                  tooltip: 'Remove attachment',
+                                  onPressed: () => _removeMedia(index),
+                                  icon: const Icon(Icons.cancel_rounded),
+                                  color: Colors.white,
+                                  iconSize: 20,
+                                  padding: EdgeInsets.zero,
+                                  constraints: const BoxConstraints.tightFor(
+                                    width: 26,
+                                    height: 26,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      },
                     ),
                   ),
-                ),
-                const SizedBox(width: 8),
-                IconButton.filled(
-                  tooltip: 'Send message',
-                  onPressed: _sending ? null : _sendMessage,
-                  style: IconButton.styleFrom(
-                    backgroundColor: Theme.of(context).colorScheme.primary,
-                    foregroundColor: Colors.white,
-                    fixedSize: const Size(49, 49),
-                  ),
-                  icon: _sending
-                      ? const SizedBox.square(
-                          dimension: 19,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: Colors.white,
+                if (_selectedMedia.isNotEmpty) const SizedBox(height: 8),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    IconButton(
+                      tooltip: 'Attach photos or videos',
+                      onPressed: _sending ? null : _pickMedia,
+                      icon: const Icon(Icons.add_photo_alternate_outlined),
+                    ),
+                    Expanded(
+                      child: TextField(
+                        controller: _messageController,
+                        minLines: 1,
+                        maxLines: 5,
+                        textCapitalization: TextCapitalization.sentences,
+                        onSubmitted: (_) => _sendMessage(),
+                        decoration: const InputDecoration(
+                          hintText: 'Write a message',
+                          contentPadding: EdgeInsets.symmetric(
+                            horizontal: 17,
+                            vertical: 13,
                           ),
-                        )
-                      : const Icon(Icons.arrow_upward_rounded),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    IconButton.filled(
+                      tooltip: 'Send message',
+                      onPressed: _sending ? null : _sendMessage,
+                      style: IconButton.styleFrom(
+                        backgroundColor: Theme.of(context).colorScheme.primary,
+                        foregroundColor: Colors.white,
+                        fixedSize: const Size(49, 49),
+                      ),
+                      icon: _sending
+                          ? const SizedBox.square(
+                              dimension: 19,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
+                            )
+                          : const Icon(Icons.arrow_upward_rounded),
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -755,6 +896,137 @@ class _ChatScreenState extends State<ChatScreen> {
         ),
       ],
     ),
+  );
+}
+
+List<Map<String, dynamic>> _messageAttachments(Map<String, dynamic> message) {
+  final media = message['media'];
+  if (media is List && media.isNotEmpty) {
+    return media.whereType<Map>().map(Map<String, dynamic>.from).toList();
+  }
+  final mediaUrl = message['mediaUrl']?.toString();
+  if (mediaUrl == null || mediaUrl.isEmpty) return [];
+  return [
+    {'url': mediaUrl, 'type': message['mediaType']},
+  ];
+}
+
+class _MessageAttachment extends StatelessWidget {
+  const _MessageAttachment({required this.url, required this.type});
+  final String url;
+  final String type;
+
+  @override
+  Widget build(BuildContext context) {
+    final maxWidth = MediaQuery.sizeOf(context).width * .68;
+    if (type == 'video') {
+      return SizedBox(
+        width: maxWidth,
+        child: _InlineVideo(url: url),
+      );
+    }
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(10),
+      child: ConstrainedBox(
+        constraints: BoxConstraints(maxWidth: maxWidth, maxHeight: 260),
+        child: Image.network(
+          url,
+          fit: BoxFit.contain,
+          loadingBuilder: (context, child, progress) => progress == null
+              ? child
+              : const SizedBox(
+                  height: 150,
+                  child: Center(child: CircularProgressIndicator()),
+                ),
+          errorBuilder: (_, _, _) => const SizedBox(
+            height: 120,
+            child: Center(child: Icon(Icons.broken_image_outlined)),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _InlineVideo extends StatefulWidget {
+  const _InlineVideo({required this.url});
+  final String url;
+
+  @override
+  State<_InlineVideo> createState() => _InlineVideoState();
+}
+
+class _InlineVideoState extends State<_InlineVideo> {
+  late final VideoPlayerController _controller;
+  late final Future<void> _initialization;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = VideoPlayerController.networkUrl(Uri.parse(widget.url));
+    _initialization = _controller.initialize();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => FutureBuilder<void>(
+    future: _initialization,
+    builder: (context, snapshot) {
+      if (snapshot.connectionState != ConnectionState.done) {
+        return const SizedBox(
+          height: 150,
+          child: Center(child: CircularProgressIndicator()),
+        );
+      }
+      if (snapshot.hasError) {
+        return const SizedBox(
+          height: 120,
+          child: Center(child: Icon(Icons.videocam_off_outlined)),
+        );
+      }
+      final aspectRatio = _controller.value.aspectRatio;
+      return Column(
+        children: [
+          AspectRatio(
+            aspectRatio: aspectRatio > 0 ? aspectRatio : 16 / 9,
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(10),
+              child: VideoPlayer(_controller),
+            ),
+          ),
+          Row(
+            children: [
+              ValueListenableBuilder<VideoPlayerValue>(
+                valueListenable: _controller,
+                builder: (context, value, _) => IconButton(
+                  tooltip: value.isPlaying ? 'Pause video' : 'Play video',
+                  onPressed: () => value.isPlaying
+                      ? _controller.pause()
+                      : _controller.play(),
+                  icon: Icon(
+                    value.isPlaying
+                        ? Icons.pause_rounded
+                        : Icons.play_arrow_rounded,
+                  ),
+                ),
+              ),
+              Expanded(
+                child: VideoProgressIndicator(
+                  _controller,
+                  allowScrubbing: true,
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                ),
+              ),
+            ],
+          ),
+        ],
+      );
+    },
   );
 }
 

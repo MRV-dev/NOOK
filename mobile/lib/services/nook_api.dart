@@ -1,6 +1,8 @@
 import 'dart:convert';
 
 import 'package:http/http.dart' as http;
+import 'package:http_parser/http_parser.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:socket_io_client/socket_io_client.dart' as socket_io;
 
 const nookApiUrl = String.fromEnvironment(
@@ -36,7 +38,9 @@ class NookApi {
         if (body != null) 'Content-Type': 'application/json',
       });
     if (body != null) request.body = jsonEncode(body);
-    final response = await http.Response.fromStream(await _client.send(request));
+    final response = await http.Response.fromStream(
+      await _client.send(request),
+    );
     dynamic data;
     try {
       data = jsonDecode(response.body);
@@ -45,59 +49,171 @@ class NookApi {
     }
     if (response.statusCode < 200 || response.statusCode >= 300) {
       final message = data is Map ? data['message'] : null;
-      throw NookApiException(message is String
-          ? message
-          : 'Request failed (${response.statusCode})');
+      throw NookApiException(
+        message is String ? message : 'Request failed (${response.statusCode})',
+      );
     }
     return data;
   }
 
   Future<Map<String, dynamic>> login(String email, String password) async =>
-      Map<String, dynamic>.from(await _request('/api/users/login',
-          method: 'POST', body: {'email': email, 'password': password}) as Map);
+      Map<String, dynamic>.from(
+        await _request(
+              '/api/users/login',
+              method: 'POST',
+              body: {'email': email, 'password': password},
+            )
+            as Map,
+      );
 
   Future<Map<String, dynamic>> register(
-          String username, String email, String password) async =>
-      Map<String, dynamic>.from(await _request('/api/users/register',
+    String username,
+    String email,
+    String password,
+  ) async => Map<String, dynamic>.from(
+    await _request(
+          '/api/users/register',
           method: 'POST',
-          body: {'username': username, 'email': email, 'password': password}) as Map);
+          body: {'username': username, 'email': email, 'password': password},
+        )
+        as Map,
+  );
 
   Future<Map<String, dynamic>> getProfile() async =>
       Map<String, dynamic>.from(await _request('/api/users/me') as Map);
 
   Future<List<Map<String, dynamic>>> getConversations() async =>
-      List<Map<String, dynamic>>.from((await _request('/api/conversations') as List)
-          .map((item) => Map<String, dynamic>.from(item as Map)));
+      List<Map<String, dynamic>>.from(
+        (await _request('/api/conversations') as List).map(
+          (item) => Map<String, dynamic>.from(item as Map),
+        ),
+      );
 
   Future<List<Map<String, dynamic>>> searchUsers(String query) async =>
-      List<Map<String, dynamic>>.from((await _request('/api/users/search',
-                  query: {'q': query}) as List)
-              .map((item) => Map<String, dynamic>.from(item as Map)));
+      List<Map<String, dynamic>>.from(
+        (await _request('/api/users/search', query: {'q': query}) as List).map(
+          (item) => Map<String, dynamic>.from(item as Map),
+        ),
+      );
 
   Future<Map<String, dynamic>> createDirectConversation(String userId) async =>
-      Map<String, dynamic>.from(await _request('/api/conversations',
-          method: 'POST',
-          body: {'type': 'direct', 'participants': [userId]}) as Map);
+      Map<String, dynamic>.from(
+        await _request(
+              '/api/conversations',
+              method: 'POST',
+              body: {
+                'type': 'direct',
+                'participants': [userId],
+              },
+            )
+            as Map,
+      );
 
   Future<List<Map<String, dynamic>>> getMessages(String conversationId) async =>
-      List<Map<String, dynamic>>.from((await _request(
+      List<Map<String, dynamic>>.from(
+        (await _request(
                   '/api/conversations/$conversationId/messages',
-                  query: {'limit': '100'}) as List)
-              .map((item) => Map<String, dynamic>.from(item as Map)));
+                  query: {'limit': '100'},
+                )
+                as List)
+            .map((item) => Map<String, dynamic>.from(item as Map)),
+      );
 
   Future<Map<String, dynamic>> sendMessage(
-          String conversationId, String content) async =>
-      Map<String, dynamic>.from(await _request(
+    String conversationId,
+    String content,
+  ) async => Map<String, dynamic>.from(
+    await _request(
           '/api/conversations/$conversationId/messages',
           method: 'POST',
-          body: {'content': content}) as Map);
+          body: {'content': content},
+        )
+        as Map,
+  );
 
-  socket_io.Socket connectSocket() => socket_io.io(
-        nookApiUrl,
-        <String, dynamic>{
-          'transports': ['websocket'],
-          'autoConnect': false,
-          'auth': {'token': token},
-        },
-      )..connect();
+  Future<Map<String, dynamic>> sendMediaMessage(
+    String conversationId,
+    List<XFile> files, {
+    String content = '',
+  }) async {
+    final request =
+        http.MultipartRequest(
+            'POST',
+            Uri.parse(
+              '$nookApiUrl/api/conversations/$conversationId/messages/media',
+            ),
+          )
+          ..headers['Accept'] = 'application/json'
+          ..headers.addAll({
+            if (token != null) 'Authorization': 'Bearer $token',
+          });
+    if (content.trim().isNotEmpty) request.fields['content'] = content.trim();
+
+    for (final file in files) {
+      final mimeType = nookMediaMimeType(file);
+      if (mimeType == null) {
+        throw NookApiException('Choose a supported image or video');
+      }
+      request.files.add(
+        await http.MultipartFile.fromPath(
+          'media',
+          file.path,
+          filename: file.name,
+          contentType: MediaType.parse(mimeType),
+        ),
+      );
+    }
+
+    final response = await http.Response.fromStream(
+      await _client.send(request),
+    );
+    dynamic data;
+    try {
+      data = jsonDecode(response.body);
+    } on FormatException {
+      data = null;
+    }
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      final message = data is Map ? data['message'] : null;
+      throw NookApiException(
+        message is String ? message : 'Request failed (${response.statusCode})',
+      );
+    }
+    return Map<String, dynamic>.from(data as Map);
+  }
+
+  socket_io.Socket connectSocket() =>
+      socket_io.io(nookApiUrl, <String, dynamic>{
+        'transports': ['websocket'],
+        'autoConnect': false,
+        'auth': {'token': token},
+      })..connect();
+}
+
+String? nookMediaMimeType(XFile file) {
+  const supportedMimeTypes = {
+    'image/jpeg',
+    'image/png',
+    'image/gif',
+    'image/webp',
+    'image/avif',
+    'video/mp4',
+    'video/webm',
+    'video/quicktime',
+  };
+  final pickedMimeType = file.mimeType?.toLowerCase();
+  if (supportedMimeTypes.contains(pickedMimeType)) return pickedMimeType;
+
+  final extension = file.name.split('.').last.toLowerCase();
+  return switch (extension) {
+    'jpg' || 'jpeg' => 'image/jpeg',
+    'png' => 'image/png',
+    'gif' => 'image/gif',
+    'webp' => 'image/webp',
+    'avif' => 'image/avif',
+    'mp4' => 'video/mp4',
+    'webm' => 'video/webm',
+    'mov' => 'video/quicktime',
+    _ => null,
+  };
 }
